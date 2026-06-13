@@ -1,0 +1,114 @@
+# Glass Joe Minds — central tunable config. Injected into engine + agents.
+# First-pass values (delegated by user); tune against B2 fights. See PRD.md §13.
+
+observation:
+  vitals_display: bands          # "bands" (deterministic word read) | "exact" (raw numbers, A/B only)
+  # Number -> phrase maps below are DETERMINISTIC and apply to BOTH fighters (own + opponent).
+  # The SYSTEM PROMPT NEVER reveals these thresholds. The LLM only ever sees the phrase and must be
+  # smart enough to decide what to do with it. Read top-down: highest `floor` <= value wins.
+  energy_bands:   # [floor, phrase]
+    - [90, "fresh and loose, full tank"]
+    - [75, "breathing easy, plenty left"]
+    - [60, "working but comfortable"]
+    - [45, "starting to blow, arms getting heavy"]
+    - [30, "tiring, breathing hard"]
+    - [15, "gassing badly, legs going"]
+    - [1,  "running on empty, barely keeping the guard up"]
+    - [0,  "completely spent — wide open, the next clean shot ends it"]
+  health_bands:   # [floor, phrase]
+    - [90, "unmarked, fresh"]
+    - [75, "lightly touched up"]
+    - [60, "marked up, taken some"]
+    - [45, "hurt, feeling those shots"]
+    - [30, "badly hurt, unsteady"]
+    - [15, "on the edge, barely standing"]
+    - [1,  "out on his feet, one shot from done"]
+
+ring:
+  size_ft: 16.0
+  corner_margin_ft: 2.0          # within this of a wall = cornered for that direction
+
+time:
+  dt: 0.05                       # physics tick (s)
+  opening_poll_interval: 0.1     # cadence both boxers are polled before the first punch
+  live_poll_interval: 0.15       # cadence an idle boxer is re-polled in the live regime
+  round_seconds: 120             # B1 full round; B2 overrides to 15
+  reaction_delay_base: 0.18      # s before a chosen defense is effective (mod by reaction/energy)
+
+energy:
+  start: 100.0
+  # punch_energy = a*(s/10) + b*(v/10) + c*(s/10)*(v/10)  (fits 10/10->3, 10/1->1, 1/10->0.5)
+  cost_a: 0.78
+  cost_b: 0.22
+  cost_c: 2.00
+  # NOTE: energy cost depends on strength & speed ONLY — punch type does not affect it.
+  step_energy: 0.4
+  slip_energy: 0.3
+  duck_energy: 0.5
+  guard_energy_per_sec: 0.2
+  regen_per_sec: 1.2             # only while not throwing (idle/guard/circle)
+  ratchet_caps: [75, 50, 25]     # once below a cap, can never exceed it again this round
+  zero_energy_next_hit_is_ko: true
+  degradation:
+    full_factor: 1.0
+    empty_factor: 0.6
+    reaction_penalty_at_empty: 0.12
+
+health:
+  start: 100.0
+  damage_per_strength: 0.5       # 10 strength -> 5.0 base (before mults)
+  jab_fixed_strength: 3.0
+  punch_type_power_mult: {jab: 1.0, cross: 1.3, uppercut: 1.45, hook: 1.6}
+  placement_mult:
+    head_center: 1.20
+    head_left:   1.00
+    head_right:  1.00
+    body_left:   0.90
+    body_center: 0.95
+  placement_health_share:
+    head_center: 1.00
+    head_left:   1.00
+    head_right:  1.00
+    body_left:   0.55
+    body_center: 0.60
+  placement_energy_share:
+    head_center: 0.10
+    head_left:   0.10
+    head_right:  0.10
+    body_left:   0.70
+    body_center: 0.65
+  block_factor: 0.20
+  block_leak_energy: 0.5
+  glancing_mult: 0.6
+  contest_roll: [0.9, 1.1]
+  zero_health_is_ko: true
+
+reach:                            # feet, by punch type
+  jab: 3.2
+  cross: 2.8
+  hook: 2.0
+  uppercut: 1.8
+  pocket_ft: 2.2
+
+footwork:
+  step_distance_ft: 1.0
+
+timing:                           # phase durations (s); scaled by speed/strength/hand_speed
+  windup: {jab: 0.12, cross: 0.18, hook: 0.22, uppercut: 0.24}
+  impact_ticks: 1
+  recovery: {jab: 0.15, cross: 0.28, hook: 0.34, uppercut: 0.36}
+  slip_duration: 0.18
+  slip_recovery: 0.12
+  duck_duration: 0.22
+  duck_recovery: 0.15
+  speed_windup_scale: 0.6        # windup *= lerp(1.0 .. this) as speed 0->10
+  strength_recovery_scale: 1.4   # recovery *= lerp(1.0 .. this) as strength 0->10
+
+roster_default:
+  power: 75
+  hand_speed: 75
+  foot_speed: 75
+  reaction: 75
+  chin: 75
+  stamina: 75
+  reach: 75

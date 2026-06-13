@@ -1,0 +1,41 @@
+"""Damage resolution at a punch's IMPACT tick (PRD §9). Pure/deterministic: the seeded contest
+roll is passed in by the caller (sim/runner), so this module is fully unit-testable."""
+from .config import CONFIG
+from .energy import output_factor
+
+_H = CONFIG["health"]
+_CHIN_BASELINE = 75.0  # roster baseline; chin == baseline -> no resistance effect (identical boxers, v1)
+
+
+def strength_value(punch_type: str, strength: float) -> float:
+    """Jab uses a fixed strength; other punches use the LLM's 0-10 effort."""
+    return _H["jab_fixed_strength"] if punch_type == "jab" else strength
+
+
+def raw_damage(punch_type: str, placement: str, strength: float,
+               attacker_energy: float, land_quality: float,
+               blocked: bool, contest_roll: float) -> float:
+    """The undivided punch potency before the health/energy split (PRD §9.2).
+    land_quality: 1.0 clean, config glancing_mult at the edge of reach. contest_roll: seeded ~[0.9,1.1].
+    """
+    base = strength_value(punch_type, strength) * _H["damage_per_strength"]
+    return (base
+            * _H["punch_type_power_mult"][punch_type]
+            * _H["placement_mult"][placement]
+            * land_quality
+            * output_factor(attacker_energy)
+            * (_H["block_factor"] if blocked else 1.0)
+            * contest_roll)
+
+
+def split(raw: float, placement: str, defender_chin: float = _CHIN_BASELINE) -> tuple[float, float]:
+    """Split raw potency into (health_damage, energy_damage). Head shots -> health, body shots -> energy.
+    Defender chin divides health damage only (neutral at baseline)."""
+    resistance = defender_chin / _CHIN_BASELINE
+    health = raw * _H["placement_health_share"][placement] / resistance
+    energy = raw * _H["placement_energy_share"][placement]
+    return health, energy
+
+
+def glancing_mult() -> float:
+    return _H["glancing_mult"]
