@@ -37,6 +37,17 @@ def test_block_heavily_reduces():
     assert approx(blocked, clean * 0.20), (clean, blocked)
 
 
+def test_body_leaks_past_guard():
+    # A high guard stops the head (0.20x) but the body LEAKS more (0.55x) — dig the body vs a turtle.
+    clean = D.raw_damage("hook", "body_left", 10, 100.0, 1.0, False, 1.0)
+    blocked_body = D.raw_damage("hook", "body_left", 10, 100.0, 1.0, True, 1.0)
+    blocked_head = D.raw_damage("hook", "head_center", 10, 100.0, 1.0, True, 1.0)
+    assert approx(blocked_body, clean * 0.55), (clean, blocked_body)
+    # body gets through a guard far better than the head does
+    assert (blocked_body / clean) > (blocked_head /
+            D.raw_damage("hook", "head_center", 10, 100.0, 1.0, False, 1.0))
+
+
 def test_degraded_attacker_hits_softer():
     full = D.raw_damage("hook", "head_center", 10, 100.0, 1.0, False, 1.0)
     gassed = D.raw_damage("hook", "head_center", 10, 0.0, 1.0, False, 1.0)
@@ -45,6 +56,7 @@ def test_degraded_attacker_hits_softer():
 
 if __name__ == "__main__":
     for fn in [test_clean_max_hook_to_chin, test_body_shot_drains_energy_more_than_health,
-               test_jab_uses_fixed_strength, test_block_heavily_reduces, test_degraded_attacker_hits_softer]:
+               test_jab_uses_fixed_strength, test_block_heavily_reduces, test_body_leaks_past_guard,
+               test_degraded_attacker_hits_softer]:
         fn()
     print("--- PASS --- damage: formula, head/body split, jab-fixed, block, degradation verified")

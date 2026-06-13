@@ -19,12 +19,16 @@ def raw_damage(punch_type: str, placement: str, strength: float,
     land_quality: 1.0 clean, config glancing_mult at the edge of reach. contest_roll: seeded ~[0.9,1.1].
     """
     base = strength_value(punch_type, strength) * _H["damage_per_strength"]
+    block_mult = 1.0
+    if blocked:
+        # Body shots leak past a high guard; head shots are heavily reduced.
+        block_mult = _H["body_block_factor"] if placement.startswith("body") else _H["block_factor"]
     return (base
             * _H["punch_type_power_mult"][punch_type]
             * _H["placement_mult"][placement]
             * land_quality
             * output_factor(attacker_energy)
-            * (_H["block_factor"] if blocked else 1.0)
+            * block_mult
             * contest_roll)
 
 

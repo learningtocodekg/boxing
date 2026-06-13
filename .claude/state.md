@@ -1,16 +1,22 @@
 # Build State
-Current phase: **B1 — BUILT & VERIFIED + 2D viewer.** Full engine + agents + runner; BOTH viewers
-(2D pygame side-view `renderer_2d` = the readable one; 3D ursina `renderer_ursina` = alt). Mock-vs-mock
-e2e passes; LLM-vs-mock AND LLM-vs-LLM on Ollama (qwen3:8b) ran clean (0 parse errors, coherent reasoning).
+Current phase: **B3 — dynamics + balance pass UNDERWAY (B1/B2 built & verified).** Full engine + agents
++ runner; BOTH viewers (2D pygame side-view `renderer_2d` = readable; 3D ursina = alt). Mock e2e passes;
+LLM-vs-mock on Ollama (qwen3:8b) validated with the new strategy prompt + slip/balance fixes (0 parse
+errors, strategic reasoning, slips now land and decide fights).
 
-## NEXT: make fights dynamic + B3 balance (gaps user saw watching replays)
-- **No movement** — agents barely use footwork (start in jab range; punching prioritized). Start them
-  further apart; prompt footwork/angles; make footwork matter.
-- **No slips/ducks** — defense is almost always `guard`. Verify reactive trigger + `incoming` reach the
-  agent; make blocking cost/leak so slipping pays.
-- **Reasoning sparse / none on blocks** — every decision (incl. guard/defense) must carry real reasoning;
-  viewer shows only latest persisted reasoning.
-- **Blocking too strong** — block_factor 0.20 on everything -> shots chip; make it line-specific.
+## DONE this session (the SESSION 3 gaps — see left_off.md for detail)
+- **Slips now work** — fixed avoidance-window bug (anchor to EFFECTIVE time, not decision time) +
+  flipped schema to DEFENSE-FIRST (was silently dropping a slip in favor of a co-specified punch).
+- **Movement** — start_range 2.4 → 4.0 (start out of range, must close); mock alternates head/body +
+  resets range/circles so the verifier actually exercises slips/head/footwork.
+- **Blocking** — now line-specific: head 0.20x, body LEAKS 0.55x (`body_block_factor`); reaction_delay
+  0.18 → 0.10 so power shots are slippable but jab/cross aren't.
+- **Strategy** — prompt rewritten with a "HOW TO WIN" doctrine (energy economy, outlast, slip>block,
+  pick power shots, body work) in band-language only; reasoning now carries real intent on every decision.
+
+## NEXT: watch B2 LLM-vs-LLM in the 2D viewer (not just JSON) to confirm dynamic+legible; tune toward KOs
+- Untested: last prompt line ("slips only beat HEAD shots") — verify on the LLM.
+- Open: nobody opens the HEAD for a finish yet (fights are close, body-heavy, defensively sound).
 
 ## What exists
 - `PRD.md` — full design (long). Source of truth for mechanics.
@@ -33,7 +39,8 @@ e2e passes; LLM-vs-mock AND LLM-vs-LLM on Ollama (qwen3:8b) ran clean (0 parse e
   degradation scales output 1.0->0.6 and slows reaction as energy falls.
 - **Health:** one bar, start 100. `base = strength*0.5`, jab uses fixed strength 3. Power mult
   jab1.0/cross1.3/uppercut1.45/hook1.6 (so to head: hook>uppercut>jab). Placement splits health vs
-  energy damage (head = health, body = drains energy). Block = 0.2 mult (heavy reduction). 0 health = KO.
+  energy damage (head = health, body = drains energy). Block is LINE-SPECIFIC: head 0.20x / body 0.55x
+  (body leaks past a high guard). 0 health = KO.
 - **Action space:** per hand {punch(type,placement,strength,speed) | guard | free}; punches
   {jab,cross,hook,uppercut} x placements {head_center,head_left,head_right,body_left,body_center};
   footwork {fwd,back,left,right,circle_l,circle_r,none}; defense {slip_l,slip_r,duck}. Can't
@@ -76,10 +83,13 @@ e2e passes; LLM-vs-mock AND LLM-vs-LLM on Ollama (qwen3:8b) ran clean (0 parse e
 - tests/test_energy, test_damage, test_e2e — all PASS (e2e = mock fight, no API key).
 
 ## Known issues / next
-- **Blocking too strong:** mock holds guard often -> most punches chip (block_factor 0.20 on everything).
-  Tune in B3 (e.g. guard only covers some lines; body shots leak more past a high guard).
+- **Blocking too strong: FIXED** — now line-specific (head 0.20x / body 0.55x leak). Body work drains a
+  guarding opponent's energy, which is the new path to wear-down/KO.
 - **Openings model is coarse:** when opponent guards, only body lines read as "partial" -> LLM spams body_left.
-  Refine `_openings` so different guard postures open different specific lines.
+  Refine `_openings` so different guard postures open different specific lines. (Still open — this is why
+  fights stay body-heavy and the head rarely opens for a finish.)
+- **No clean head shots / no KOs yet:** style is body-drain + tight defense; nobody opens the head. Needs
+  either a tiring opponent's guard to drop or a prompt nudge to switch upstairs once the body's done.
 - Roster folded into config.roster_default (no separate sim/rosters/default.yaml yet); both boxers identical.
 - Footwork is instant displacement (no leg-lock duration) — fine for B1, revisit if it looks jumpy in 3D.
 - See left_off.md for the single NEXT STEP.

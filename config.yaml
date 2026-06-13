@@ -33,7 +33,9 @@ time:
   opening_poll_interval: 0.1     # cadence both boxers are polled before the first punch
   live_poll_interval: 0.15       # cadence an idle boxer is re-polled in the live regime
   round_seconds: 120             # B1 full round; B2 overrides to 15
-  reaction_delay_base: 0.18      # s before a chosen defense is effective (mod by reaction/energy)
+  reaction_delay_base: 0.10      # s before a chosen defense is effective (mod by reaction/energy)
+                                 # tuned so telegraphed power shots (hook/uppercut) can be slipped,
+                                 # but fast straight shots (jab/cross) land before a slip takes hold.
 
 energy:
   start: 100.0
@@ -77,7 +79,8 @@ health:
     head_right:  0.10
     body_left:   0.70
     body_center: 0.65
-  block_factor: 0.20
+  block_factor: 0.20             # head shots into a high guard are heavily reduced
+  body_block_factor: 0.55        # body shots LEAK past a high guard (digging the body still tires him)
   block_leak_energy: 0.5
   glancing_mult: 0.6
   contest_roll: [0.9, 1.1]

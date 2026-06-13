@@ -72,12 +72,12 @@ def parse_action(raw: str, ctx: dict) -> dict:
     footwork = data.get("footwork")
     footwork = footwork if footwork in ctx["legal"]["footwork"] else None
 
-    # Legality: slip/duck cannot coexist with a punch or footwork (PRD §8).
+    # Legality: slip/duck is a STANDALONE move — it cannot combine with a punch or a step (PRD §8).
+    # If the model specified both, honor the DEFENSE (it is trying to avoid an incoming shot) and drop
+    # the punch/step; the counter comes on a later step. The engine ignores the hands while defending.
     if defense is not None:
-        if (left and left["action"] == "punch") or (right and right["action"] == "punch"):
-            defense = None  # they chose to punch; drop the conflicting defense
-        else:
-            footwork = None
+        footwork = None
+        left = right = None
 
     return {
         "left_hand": left,

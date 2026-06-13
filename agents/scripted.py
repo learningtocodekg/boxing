@@ -48,13 +48,29 @@ class ScriptedBoxer:
             act["reasoning"] = "close the distance"
             return act
 
+        # Periodically reset the range / cut an angle so it isn't a static phone-booth.
+        if band == "pocket" and self.call_count % 6 == 0:
+            if "back" in lg["footwork"]:
+                act["footwork"] = "back"
+                act["reasoning"] = "step back, reset the range"
+                return act
+            if "circle_left" in lg["footwork"]:
+                act["footwork"] = "circle_left"
+                act["reasoning"] = "circle off the center line"
+                return act
+
         # In range -> rip a punch with a free hand at an open line.
         puncher = free[0] if free else None
         if puncher and "punch" in lg[puncher] and lg["max_strength"] >= 1:
             opens = [p for p, st in lg["placements"].items() if st == "OPEN"]
-            target = opens[0] if opens else "body_left"
             tir = lg["types_in_range"]
-            if target.startswith("body") and "hook" in tir:
+            if opens:
+                target = opens[0]
+            else:
+                # No open line: alternate digging the body (leaks past a guard, drains energy)
+                # with headhunting power shots (forces him to slip or block) so every line is exercised.
+                target = "head_center" if self.call_count % 2 == 0 else "body_left"
+            if "hook" in tir:
                 ptype = "hook"
             elif "cross" in tir:
                 ptype = "cross"

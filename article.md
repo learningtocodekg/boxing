@@ -105,3 +105,48 @@ reasoning. None of that showed up in "0 parse errors, coherent reasoning, correc
 optimize the cheapest legal win (stand in range, punch, block) because nothing in the observation or
 balance rewards moving, slipping, or angling. Confirms the thesis cuts both ways: a legible viewer is
 itself an eval — it surfaces degenerate-but-passing behavior that aggregate numbers don't.
+
+---
+
+## Observations (B3, dynamics + balance pass)
+
+**A reaction-delay model can silently make its own defense unusable.** Slips were *chosen* by the model
+and *still landed* on it. The bug: the avoidance window was computed from the decision time `t`
+(`active_until = t + slip_duration`) while the slip only became *effective* after the reaction delay —
+so the delay ate ~0.10s out of an 0.18s window, leaving the head offline for only ~0.08s. Combined with
+impact-time being rounded up to the next physics tick, a telegraphed hook landed *just* past the window.
+The fix was conceptual, not numeric: anchor the window to the *effective* time (`slip_window(eff)`), so
+the reaction delay *delays* the slip rather than *shortening* it. Lesson: with a delayed-effect defense,
+always measure the active window from when it goes live, not from when it was ordered.
+
+**The legality resolver silently inverted the model's intent — visible only in the reasoning string.**
+The model kept writing "slip his hook, then counter to the body" as a *single* action: a defense field
+*and* a punch. Our resolver's tie-break was "they chose to punch, so drop the conflicting defense" — so
+the engine threw the punch and discarded the slip, i.e. the model's defensive intent was silently
+converted into trading, and it ate the exact shot it meant to slip (a clean 6.73 head hook that flipped
+the fight). Nothing looked wrong: legal JSON, 0 parse errors, a plausible action. The only evidence was
+the mismatch between the `reasoning` ("slip...") and the applied engine state (a hook windup) in the
+replay JSON. Two fixes: (1) flip the tie-break to *defense-first* (if the model bothered to name a slip,
+honor it; the engine already ignores the hands while defending), and (2) tell the model in the prompt
+that a slip is a *standalone step* and the counter comes on the *next* one. After the flip, the same
+matchup inverted — the LLM slipped, stayed unmarked, and won. Lesson: when an action menu allows
+mutually-exclusive intents, the conflict-resolution default is a real design choice, and you can only
+catch a wrong one by diffing *stated intent against executed action*, not by validating the action alone.
+
+**A symmetric scripted verifier collapses into a degenerate equilibrium that tests nothing.** The mock
+exists to exercise *every* move so the engine/viewer can be checked — but mock-vs-mock produced 47/47
+*blocked body shots*, zero slips, zero clean hits, zero movement after the first step. Two identical
+"guard the head, dig the unslippable body" heuristics lock into a body-shot stalemate where none of the
+interesting paths (head shots, slips, footwork) ever fire — so the "verifier" was silently verifying
+nothing. Had to perturb it deliberately (alternate head/body targets, periodically reset range/circle)
+to make the paths exercise. Lesson: a symmetric deterministic opponent is not a test fixture until you
+break its symmetry; sameness produces a stable but uninformative fixed point.
+
+**Models coach themselves into useless moves without a "why/when," not just a "what."** The first prompt
+described every control precisely (what a slip does, what strength costs) but gave no game plan — and the
+model fought accordingly: technically-legal moves with no strategy, e.g. slipping *body* hooks (which
+can't be slipped at all) and stepping *backward* in the same move it was trying to land a punch (pulling
+itself out of range → whiff). Adding a short strategic doctrine — energy is the battery the fight is
+fought over, make him spend while you conserve, slip>block, pick power shots for openings, work the body
+to drain — visibly changed the reasoning chains and the outcomes. The model has the capability; it needs
+the *objective function* spelled out, because a pile of correct mechanics doesn't imply a strategy.

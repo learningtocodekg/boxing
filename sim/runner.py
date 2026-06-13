@@ -146,9 +146,11 @@ def _apply(b: B.BoxerState, opp: B.BoxerState, action: dict, t: float, fight: Fi
                 hand.impact_pending = False
                 hand.punch_type = ""
         b.defense = action["defense"]
-        b.defense_effective_t = t + timing.reaction_delay(b.attrs.get("reaction", 75),
-                                                          energy_react_pen(b.energy))
-        active, locked = (timing.duck_window(t) if b.defense == "duck" else timing.slip_window(t))
+        eff = t + timing.reaction_delay(b.attrs.get("reaction", 75), energy_react_pen(b.energy))
+        b.defense_effective_t = eff
+        # Avoidance window runs from when the slip/duck becomes EFFECTIVE (after the reaction delay),
+        # so the head stays offline for the full slip duration rather than having the delay eat into it.
+        active, locked = (timing.duck_window(eff) if b.defense == "duck" else timing.slip_window(eff))
         b.defense_active_until, b.defense_locked_until = active, locked
         b.energy = max(0.0, b.energy - (_E["duck_energy"] if b.defense == "duck" else _E["slip_energy"]))
     else:
@@ -202,7 +204,7 @@ def _make_agent(spec: dict, local: bool, model_override: str | None):
 
 def run_fight(scenario_path: str | None = None, seed: int | None = None, output: str | None = None,
               local: bool = False, model: str | None = None, verbose: bool = True) -> dict:
-    sc = {"name": "default", "round_seconds": _T["round_seconds"], "start_range": 2.4,
+    sc = {"name": "default", "round_seconds": _T["round_seconds"], "start_range": 4.0,
           "red": {"type": "scripted", "name": "Red"}, "blue": {"type": "scripted", "name": "Blue"}}
     if scenario_path:
         sc.update(yaml.safe_load(Path(scenario_path).read_text(encoding="utf-8")))
