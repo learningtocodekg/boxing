@@ -3,6 +3,9 @@
 
 observation:
   vitals_display: bands          # "bands" (deterministic word read) | "exact" (raw numbers, A/B only)
+  guard_sags_below_energy: 45    # below this, a gassed fighter's high guard sags -> his HEAD lines read
+                                 # "sagging" (openable) instead of GUARDED. The head opens via fatigue,
+                                 # not for free. (Phrase only; the threshold is never shown to the LLM.)
   # Number -> phrase maps below are DETERMINISTIC and apply to BOTH fighters (own + opponent).
   # The SYSTEM PROMPT NEVER reveals these thresholds. The LLM only ever sees the phrase and must be
   # smart enough to decide what to do with it. Read top-down: highest `floor` <= value wins.

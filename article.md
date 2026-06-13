@@ -150,3 +150,43 @@ itself out of range → whiff). Adding a short strategic doctrine — energy is 
 fought over, make him spend while you conserve, slip>block, pick power shots for openings, work the body
 to drain — visibly changed the reasoning chains and the outcomes. The model has the capability; it needs
 the *objective function* spelled out, because a pile of correct mechanics doesn't imply a strategy.
+
+---
+
+## Observations (B3, dynamic-openings pass)
+
+**The prompt asked for upstairs work; the *observation* made it impossible — and the observation won.**
+The fight was a monotonous `body_left` spam (92% body, 82% blocked) despite a prompt that explicitly says
+"soften the body, the head opens up, go for the finish." We almost rewrote the prompt again. The real
+culprit was the feature layer: `_openings` read the head as permanently `GUARDED` whenever the opponent
+held any guard, so a head shot was *always* a strictly-dominated choice and the model — correctly —
+never threw one. The model's reasoning even narrated the right plan ("drain the body, then go up top")
+while its hands couldn't, because "up top" never appeared as available. Lesson: an LLM agent's behavior
+is bounded by what the observation makes *representable*, not by what the prompt *requests*. A degenerate
+policy is often a rational response to an impoverished state read, not a reasoning failure — fix the menu
+before touching the prompt.
+
+**One observation change cascaded into four emergent behaviors.** Rebuilding `_openings` to read the
+opponent's *actual* per-hand state (a hand mid-punch or in recovery isn't guarding its side → that side
+is `OPEN`) plus a fatigue-driven `sagging` head read, and reframing the range line so "out of range" is
+described as free defense + a chance to recover — in one 15s LLM-vs-LLM fight (same seed/model), head
+shots went 4→17, ring movement 10→41 footwork steps (distinct floor cells 2→7), slip *attempts* 3→16,
+and parse errors 8→0. We changed *what the model can see*, not what it's told to do, and the strategy it
+was already reasoning about became executable.
+
+**An advisory opening the damage layer doesn't honor is a lie the model faithfully acts on.** The new
+`sagging` read (a gassed opponent's high guard is dropping → head is openable) got the model to throw
+upstairs — 17 head shots — but **zero landed clean**; every one was blocked or glancing. `sagging` is a
+*fatigue* cue, but the guard is still mechanically UP, and the damage resolver only checks the binary
+`guarding()` and applies the full block multiplier. So the observation invited a shot the engine then
+fully blocked. The model did exactly as told and got nothing. Lesson: every opening you surface in the
+read must be backed by the impact-resolution layer — a feature that *suggests* an opportunity the physics
+won't *honor* trains the model to waste energy on a mirage.
+
+**Rewarding movement without re-tuning drain trades one stalemate for another.** Framing distance as
+defense worked almost too well: fighters circled out, banked energy (ending ~55 vs ~22 before), and
+took far less damage (health 86/90 vs 65/73), and whiffs jumped 2→15 as punches chased opponents who'd
+stepped off. The fight looks dynamic but became *less* decisive — nobody gasses now, so the energy-0 KO
+moved further away. The body-spam stalemate became a keep-away stalemate. Lesson: defense and aggression
+are coupled through the energy economy; buffing the safe option (move/retreat/recover) without also
+raising the cost of passivity or the reward of pressure just relocates the degenerate equilibrium.

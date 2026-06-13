@@ -14,9 +14,21 @@ errors, strategic reasoning, slips now land and decide fights).
 - **Strategy** — prompt rewritten with a "HOW TO WIN" doctrine (energy economy, outlast, slip>block,
   pick power shots, body work) in band-language only; reasoning now carries real intent on every decision.
 
-## NEXT: watch B2 LLM-vs-LLM in the 2D viewer (not just JSON) to confirm dynamic+legible; tune toward KOs
-- Untested: last prompt line ("slips only beat HEAD shots") — verify on the LLM.
-- Open: nobody opens the HEAD for a finish yet (fights are close, body-heavy, defensively sound).
+## DONE next session (dynamic openings + movement) — see left_off.md
+- **`_openings` rebuilt**: per-line read from the opponent's ACTUAL hand states + fatigue (was a binary
+  guard flag). RECOVERY/winding-up/down hand → that side `OPEN`; gassed → head lines `sagging`; body
+  still `partial`; `head_center` opens only if both hands off it. Config `observation.guard_sags_below_energy: 45`.
+- **Range reframed as defense+rest**; prompt promotes jab-to-tire → guard-sag/recovery-window power shot.
+- 15s before/after (Ollama qwen3:8b, seed 42): head shots 4→17, movement 2→7 cells, slips 3→16, parse
+  errors 8→0. Confirmed the diagnosis (the head never opened because the OBSERVATION never let it).
+
+## NEXT: fix `sagging`-vs-block disagreement so tired-guard head shots land clean; then tune toward KOs
+- **Open (this session's finding): `sagging` overpromises** — 17 head shots, 0 CLEAN. The damage resolver
+  only checks binary `guarding()` and applies full `block_factor`, so a `sagging` (tired-but-up) guard
+  still blocks fully. Make block scale with the blocker's energy, OR downgrade what `sagging` claims.
+- **Open: more dynamic but less decisive** — movement+range-as-defense → fighters bank energy (end ~55
+  vs ~22) and take less damage; KO got further away. Needs balance tune (drain/leak/round length).
+- **Open: slips chosen a lot (16) but rarely LAND (1 avoid)** — slip-vs-impact timing still mostly misses.
 
 ## What exists
 - `PRD.md` — full design (long). Source of truth for mechanics.
@@ -85,9 +97,9 @@ errors, strategic reasoning, slips now land and decide fights).
 ## Known issues / next
 - **Blocking too strong: FIXED** — now line-specific (head 0.20x / body 0.55x leak). Body work drains a
   guarding opponent's energy, which is the new path to wear-down/KO.
-- **Openings model is coarse:** when opponent guards, only body lines read as "partial" -> LLM spams body_left.
-  Refine `_openings` so different guard postures open different specific lines. (Still open — this is why
-  fights stay body-heavy and the head rarely opens for a finish.)
+- **Openings model is coarse: REWORKED** — `_openings` now reads per-line from the opponent's real hand
+  states + fatigue (RECOVERY/down → side OPEN; gassed → head `sagging`). Head shots jumped 4→17 in 15s.
+  Residual: `sagging` isn't honored by the block resolver (0 clean head shots) — see NEXT.
 - **No clean head shots / no KOs yet:** style is body-drain + tight defense; nobody opens the head. Needs
   either a tiring opponent's guard to drop or a prompt nudge to switch upstairs once the body's done.
 - Roster folded into config.roster_default (no separate sim/rosters/default.yaml yet); both boxers identical.

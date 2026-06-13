@@ -11,7 +11,6 @@ from engine import ring
 from engine import boxer as B
 from engine.energy import punch_energy
 
-_PLACEMENTS = ("head_center", "head_left", "head_right", "body_left", "body_center")
 _PUNCH_TYPES = ("jab", "cross", "hook", "uppercut")
 _OBS = CONFIG["observation"]
 
@@ -48,15 +47,37 @@ def _hand_legal(hand: B.Hand, types_in_range: list[str], max_strength: int):
     return opts
 
 
+# Which hand covers each line (orthodox, identical boxers). A hand only covers its side while it's
+# held in GUARD; mid-punch / recovering / down, that side is exposed. head_center sits behind the high
+# guard — it stays covered while EITHER hand is up, so it only opens when both hands are off it.
+_COVER = {
+    "head_left":   ("left",),
+    "body_left":   ("left",),
+    "head_right":  ("right",),
+    "body_center": ("right",),
+    "head_center": ("left", "right"),
+}
+
+
 def _openings(opp: B.BoxerState) -> dict:
-    """Loose read of which lines are open on the opponent given their guard (PRD §10, B1 simplification)."""
-    guarding = opp.guarding()
+    """Per-line read of what's open on the opponent, from his actual hand states + fatigue.
+
+    A line is OPEN when no covering hand is guarding it — a hand that is winding up, recovering
+    (stuck out), or down is not protecting its side, so that side is there for the taking (this is
+    the counter window right after he throws). A guarded BODY line still LEAKS (partial); a guarded
+    HEAD line SAGS open once he's gassed and can't keep the high guard up.
+    """
+    tired = opp.energy < _OBS["guard_sags_below_energy"]
     out = {}
-    for p in _PLACEMENTS:
-        if not guarding:
+    for p, hands in _COVER.items():
+        covering = [getattr(opp, hn) for hn in hands]
+        guarded = (any if p == "head_center" else all)(h.guarding() for h in covering)
+        if not guarded:
             out[p] = "OPEN"
         elif p.startswith("body"):
             out[p] = "partial"
+        elif tired:
+            out[p] = "sagging"
         else:
             out[p] = "GUARDED"
     return out
@@ -115,9 +136,9 @@ def build_context(self_b: B.BoxerState, opp: B.BoxerState, t: float, round_secon
 
 
 _RANGE_LINE = {
-    "pocket": "IN THE POCKET - every punch reaches.",
-    "jab": "AT JAB RANGE - only the jab (and barely the cross) reaches; step in to land hooks/uppercuts.",
-    "out": "OUT OF RANGE - nothing reaches; close the distance.",
+    "pocket": "IN THE POCKET - every punch reaches, his too; stand square and you trade. Cut an angle to land clean.",
+    "jab": "AT JAB RANGE - your jab (and barely the cross) reaches, but his hooks/uppercuts CAN'T reach you here. A safe place to measure him and bank energy; step in to land power.",
+    "out": "OUT OF RANGE - nothing reaches either way. You're safe: step in to work, or stay out and get your wind back.",
 }
 
 

@@ -1,65 +1,73 @@
 # Left Off
 Date: 2026-06-13
 
-## This session — B3 dynamics + balance + strategy prompt (what got done)
-Tackled the SESSION 3 gaps (static fights: no movement, no slips, sparse reasoning, blocking too
-strong) together with B3 balance and a real strategy prompt. All no-API tests pass; validated twice on
-Ollama (qwen3:8b, LLM-vs-mock 3s) reading the replay JSON directly.
+## This session — dynamic-openings model + movement (B3 continued)
+Diagnosed and attacked the static `body_left` stalemate from the last B2 fight. Root cause was NOT the
+prompt (it already told the model to go upstairs / use range) — it was the **observation**: `_openings`
+read the head as permanently GUARDED, so a head shot was always a bad bet and both fighters rationally
+spammed the one line that read as available. Did web research on real boxing (jab to break/measure,
+distance control as defense, guard-sag from fatigue, recovery-window counters) and translated it into
+the model's "mental state" (observation + prompt), NOT new mechanics.
 
-1. **Slips never worked — fixed a real correctness bug** (`sim/runner.py::_apply`). The slip/duck
-   avoidance window was computed from decision time `t` (`slip_window(t)`), but the reaction delay
-   (~0.10s) ate into it, leaving the head offline only ~0.08s; telegraphed hooks (impact grid-rounded
-   up a tick) landed just past it. Now the window is anchored to the EFFECTIVE time (`slip_window(eff)`),
-   so the delay delays the slip instead of shortening it. Mock fight: 0 → 7 successful slips.
-2. **Schema flipped to DEFENSE-FIRST** (`agents/schema.py`). The model kept writing "slip then counter"
-   as one action (defense + punch); the old tie-break dropped the defense and kept the punch, silently
-   turning a slip into a trade — Red ate a clean 6.73 head hook that flipped a fight. Now if both are
-   present, the defense is honored and hands/footwork dropped (engine already ignores hands while
-   defending). Re-run: Red slipped, stayed unmarked, WON (97.0 vs 95.2) — exact inverse of before.
-3. **Blocking made line-specific** (`engine/damage.py`, `config.yaml`). Head shots into a guard stay
-   0.20x; body shots LEAK past a high guard (`body_block_factor 0.55`) — digging the body drains a
-   turtle. New test `test_body_leaks_past_guard` locks it in.
-4. **Slips made viable** (`config.yaml`): `reaction_delay_base 0.18 → 0.10` so power shots
-   (hook/uppercut) can be slipped but fast straight shots (jab/cross) can't — a real read.
-5. **Movement**: `start_range 2.4 → 4.0` (all scenarios + runner default) so they start out of range
-   and must close; mock now alternates head/body targets and periodically resets range / circles (so the
-   verifier actually exercises slips, head shots, footwork — it provably didn't before: 47/47 blocked
-   body shots, 0 slips, 0 movement).
-6. **Strategy prompt rewrite** (`agents/prompts/boxer_system.txt`). The prompt taught controls but no
-   game plan. Added a "HOW TO WIN" doctrine (energy is the battery; outlast/conserve; slip>block; pick
-   power shots for openings; work the body; read the moment) — all in qualitative band-language, NEVER
-   revealing the numeric thresholds (design rule). Also clarified: a slip is a STANDALONE step (set
-   defense only, counter next step); slips only beat HEAD shots (can't slip the body); don't step back
-   out of your own punch; keep the free hand guarding. LLM reasoning became visibly strategic
-   ("close distance to set up body shots and drain his energy"; "slip his hook... setting up a finish").
+### What got done
+1. **`_openings` rebuilt** (`agents/observation.py`) — per-line read from the opponent's ACTUAL hand
+   states + fatigue, not a binary guard flag. A hand covers its side only while held in GUARD; mid-punch
+   / RECOVERY (stuck out) / down → that side reads `OPEN` (the counter window right after he throws).
+   `head_center` only opens if BOTH hands are off it. A guarded BODY line still `partial` (leaks); a
+   guarded HEAD line reads `sagging` once the opponent is gassed (energy < `guard_sags_below_energy`).
+   Added config knob `observation.guard_sags_below_energy: 45`. Removed orphaned `_PLACEMENTS`.
+2. **Range reframed as defense + rest** (`_RANGE_LINE`) — "out of range" / "jab range" now tell the LLM
+   his hooks/uppercuts can't reach there and he banks energy, so retreating/circling is a legible option.
+3. **Prompt promotes the real tactic** (`boxer_system.txt`) — plan item 1: distance is free defense + a
+   chance to recover; item 4: pepper with the cheap jab to measure + make him spend energy covering up,
+   and load the power shot when the guard SAGS or right after he throws (recovery window). Band-language
+   only, no numbers leaked.
 
-## Verified
-- `tests/test_energy`, `tests/test_damage` (+ new body-leak test), `tests/test_e2e` — ALL PASS.
-- Ollama smoke 1 (`replays/strat_smoke.json`): new prompt → strategic reasoning, 0 parse errors, but
-  slips silently dropped (led to fixes #1/#2).
-- Ollama smoke 2 (`replays/strat_smoke2.json`): slips now register (`avoid via=slip_left`), Red wins,
-  0 parse errors. Residual: model wasted some slips on body hooks → added the "slips only beat the head"
-  prompt line after.
+### Verified
+- `test_energy`, `test_damage`, `test_e2e` all PASS (run with `PYTHONPATH=. .venv\Scripts\python.exe tests/<f>.py`).
+- Unit sanity check of `_openings`: threw-left→left side OPEN; winding-up-right→right side OPEN;
+  gassed→all heads `sagging`; fresh both-up→heads GUARDED/body partial (no regression). All correct.
+- **15s LLM-vs-LLM before/after on Ollama qwen3:8b, same seed 42** (`replays/b2_15s_baseline.json` =
+  OLD build, `replays/b2_15s_after.json` = NEW build):
 
-## Broken / Open
-- **Not yet visually watched** in the 2D viewer this session — only analyzed via replay JSON. Watch
-  `strat_smoke2.json` (and a fresh LLM-vs-LLM) to confirm it reads well:
-  `.venv\Scripts\python.exe -m render.renderer_2d replays/strat_smoke2.json`
-- **The last prompt line (slips-only-beat-head) is untested on the LLM** — added after smoke 2, no run
-  since. First thing to verify next session.
-- **No clean head shots from the body-drain style yet** — fights are close, body-heavy, defensively
-  sound, but nobody opens the head for a finish. May need: a tiring opponent's guard to drop, or prompt
-  nudge to switch to the head once the body's done its work. Watch whether longer rounds produce KOs.
-- LLM-vs-LLM (B2) not re-run this session with all the new changes — that's the real watchable target.
+  | metric            | BEFORE | AFTER |
+  |-------------------|--------|-------|
+  | head shots landed | 4      | 17    |
+  | head/body split   | 4/46   | 17/25 |
+  | lines used        | 3      | 5 (incl head_left/right) |
+  | movement (non-none footwork) | 10/87 | 41/115 |
+  | distinct cells r/b| 2/3    | 7/7   |
+  | slips chosen      | 3      | 16    |
+  | parse errors r/b  | 2/8    | 0/0   |
+  | whiffs            | 2      | 15    |
+  | CLEAN shots       | 4      | 0     |
+  | end health r/b    | 65.7/73.5 | 86.5/90.9 |
+  | end energy r/b    | 22/21  | 55/55 |
+  | result            | Blue decision | Blue decision |
+
+  Core diagnosis confirmed: head-hunting, movement, and slips all jumped; parse errors went to zero.
+
+## Broken / Open (NOTED, NOT FIXED this session — per instruction)
+1. **`sagging` overpromises — the block engine doesn't honor a fatigue opening.** 17 head shots landed
+   but **0 were clean** (all blocked/glancing). `sagging` is an advisory read (the guard is still UP,
+   just tired) while the damage resolver only checks the binary `guarding()` and applies the full
+   `block_factor`. So the observation invites a head shot the mechanics then fully block. Fix direction:
+   either make fatigue actually reduce block effectiveness (a tired guard blocks worse), or downgrade
+   what `sagging` claims. Openings-read and damage-resolution must agree.
+2. **More dynamic but LESS decisive — the KO got further away.** Movement + range-as-defense let
+   fighters bank energy (end ~55 vs ~22 before) and take less damage (health 86/90 vs 65/73), and
+   whiffs jumped 2→15. Prettier fight, but nobody gasses now, so the energy-0 KO is further off. Likely
+   needs balance tuning (faster drain, more block-leak, or longer rounds) so rewarding movement doesn't
+   neuter the fight into a no-damage stalemate of a different kind.
+3. **Slips still rarely LAND** — 16 chosen, only 1 registered as an `avoid` event. Timing of slip vs
+   incoming impact still mostly misses (pre-existing; the recovery-delay/impact-tick interaction).
+4. **NOT visually watched in the 2D viewer this session** — only analyzed via replay JSON. Watch
+   `replays/b2_15s_after.json` to confirm the movement/head-hunting reads well on screen:
+   `.venv\Scripts\python.exe -m render.renderer_2d replays/b2_15s_after.json`.
 
 ## NEXT STEP
-**Run B2 LLM-vs-LLM with all the new changes and WATCH it in the 2D viewer** (not just JSON), to confirm
-the fight is now dynamic and legible end-to-end:
-`.venv\Scripts\python.exe main.py --scenario sim/scenarios/b2_llm_smoke.yaml --output replays/b2_check.json`
-then `.venv\Scripts\python.exe -m render.renderer_2d replays/b2_check.json`.
-Verify: movement/angles, slips landing (avoid events), body work draining energy, every decision carries
-real reasoning, and blocking no longer makes it a stalemate. Then tune toward KOs / longer rounds (B3→B4).
-
-Run anything with `.venv\Scripts\python.exe ...` from boxing/ root. Ollama must serve qwen3:8b
-(`ollama serve`; model is installed). qwen3:8b is slow (thinking mode) — a 3s sim is minutes; run LLM
-fights in the background.
+**Decide and apply the `sagging`/block fix (open problem #1)** so head shots at a tired opponent actually
+land clean — most likely: make `block_factor` scale up (block weaker) as the blocker's energy falls, so a
+`sagging` guard mechanically leaks the way the observation promises. Then re-run the 15s before/after to
+confirm clean head shots appear and the fight trends toward a KO (problem #2). Run LLM fights in the
+background on Ollama qwen3:8b (`--local --model qwen3:8b`; slow, ~20min for a 15s sim).
