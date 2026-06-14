@@ -17,7 +17,7 @@ observation:
     - [30, "tiring, breathing hard"]
     - [15, "gassing badly, legs going"]
     - [1,  "running on empty, barely keeping the guard up"]
-    - [0,  "completely spent — wide open, the next clean shot ends it"]
+    - [0,  "completely spent — guard's dropping and the feet are gone, wide open to clean shots"]
   health_bands:   # [floor, phrase]
     - [90, "unmarked, fresh"]
     - [75, "lightly touched up"]
@@ -53,15 +53,17 @@ energy:
   guard_energy_per_sec: 0.2
   regen_per_sec: 1.2             # only while not throwing (idle/guard/circle)
   ratchet_caps: [75, 50, 25]     # once below a cap, can never exceed it again this round
-  zero_energy_next_hit_is_ko: true
-  ko_energy_threshold: 1.0       # "empty" for the gassed-out KO. Regen bounces a spent fighter a hair
-                                 # above 0 between hits, so exact 0 is unreachable at impact; this is the
-                                 # floor of the bottom energy band ("completely spent — the next clean shot
-                                 # ends it") so the mechanic honors what the observation already promises.
+  zero_energy_next_hit_is_ko: false  # energy is CAPACITY, not a win condition. You do NOT win by emptying
+                                 # his tank — a gassed man doesn't fall over, he just can't defend (guard
+                                 # sags + slips come late) so he eats clean HEAD shots that take his HEALTH.
+                                 # KO is health-only. (gassed-KO path kept config-gated for reference.)
+  ko_energy_threshold: 1.0       # unused while zero_energy_next_hit_is_ko is false.
   degradation:
     full_factor: 1.0
-    empty_factor: 0.6
-    reaction_penalty_at_empty: 0.12
+    empty_factor: 0.6            # a gassed fighter's punches land at 60% power
+    reaction_penalty_at_empty: 0.25  # a gassed fighter's defense slows hard: at empty his reaction delay
+                                 # grows past most windups, so he can't slip/block in time and eats clean
+                                 # shots. This is the "tired = can't defend = easy 10s land" lever.
 
 health:
   start: 100.0

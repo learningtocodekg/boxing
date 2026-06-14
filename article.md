@@ -217,3 +217,36 @@ throughput. The fix was to decouple them on a different axis: keep the slow, leg
 the lost exchanges with round length (15s → 45s) rather than re-speeding the punches. Lesson: when a
 readability change moves an outcome metric, don't trade one against the other on the same knob — find
 the orthogonal lever (here, time) that restores the outcome without giving back the readability.
+
+## Observations (B3, energy re-centered as capacity, not objective)
+
+**The "drain his energy" strategy was prompt-induced, not emergent.** Reading the fight logs, both
+fighters obsessively reasoned about draining the opponent's energy ("targeting energy drain and opening
+the head", "drain him with body shots", "bank energy") — it looked like a sophisticated war-of-attrition
+strategy the models had discovered. It wasn't. The system prompt literally opened a paragraph with
+"ENERGY IS WHAT WINS FIGHTS — TREAT IT AS YOUR BATTERY" and "whoever still has gas in the late going
+wins", and plan item 2 was "DRAIN HIM WITH THE BODY". The mechanics backed it (a gassed-out KO path,
+body shots dumping damage into an energy bar). The models were just faithfully optimizing the objective
+we *told* them was the objective. Lesson: before reading agent behavior as emergent strategy, check
+whether you wrote it into the prompt. A goal stated in the system prompt will be pursued as a terminal
+goal, even when you meant it as a means.
+
+**We deleted the first KO one session after shipping it — on purpose.** The gassed-out KO (energy < 1.0
++ clean hit) made *energy* a win condition, which is the wrong model: in a real fight low energy doesn't
+end you, it just means you can't defend, so you eat clean head shots that take your *health*. So energy
+should be **capacity** (it gates punch power/speed and defense reaction), never an objective. The fix was
+almost entirely subtraction + reframing, not new machinery — the capacity model already existed
+(`output_factor`, `reaction_penalty`, the sagging-guard block-leak all keyed off energy). We flipped off
+the energy-KO, rewrote the prompt to "YOU WIN ONE WAY: TAKE HIS HEALTH TO ZERO… energy is your capacity
+to fight, not a way to win", and reframed body work as "sap him so he can't defend → open the head".
+Measured on the same seed: the drain-vs-health framing ratio in the reasoning went 1.81:1 → 1.11:1, and
+slips actually *landed* 0 → 6 times — the models gravitated to taking zero damage once getting hit, not
+draining a tank, was the thing that mattered.
+
+**Removing a discrete win-condition makes short rounds less decisive — correctly.** With the energy-KO
+gone and regen intact, nobody bottoms out in 15s (end energy ~56–60), so the fatigue → guard-sags →
+head-opens → health-falls chain never fires, and the fight is a low-damage feeling-out (end health
+78/88, decision). That's not a regression — it's the honest consequence of the new model: a finish now
+*requires* actually wearing someone down over a long enough round, instead of a cheap threshold trip.
+The decisiveness lever moved from "trip the energy gate" to "round length × accumulated fatigue", which
+is where it belongs.

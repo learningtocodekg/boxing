@@ -41,7 +41,7 @@ def test_degradation_curve():
     assert approx(E.output_factor(0.0), 0.6)
     assert approx(E.output_factor(50.0), 0.8)
     assert approx(E.reaction_penalty(100.0), 0.0)
-    assert approx(E.reaction_penalty(0.0), 0.12)
+    assert approx(E.reaction_penalty(0.0), 0.25)   # gassed defense slows hard -> can't slip/block in time
 
 
 if __name__ == "__main__":

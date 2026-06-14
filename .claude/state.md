@@ -41,10 +41,27 @@ errors, strategic reasoning, slips now land and decide fights).
 - Verified: all unit tests PASS; `replays/b2_45s_ko.json` (seed 42, GPT-5-nano) =
   **Red wins by gassed-out KO at 35.75s** (first KO). Viewer shows the gold KO banner.
 
-## NEXT: watch + commit
-- **Watch `replays/b2_45s_ko.json`** in the 2D viewer (slow pace + KO read on screen).
-- **Commit** the resumed state (sagfix + slowdown + KO threshold all uncommitted).
-- **Open: slips chosen a lot but rarely LAND** — slip-vs-impact timing still mostly misses.
+## DONE latest: ENERGY RE-CENTERED as capacity, NOT a win condition (supersedes the gassed-KO above)
+- User feedback: LLMs treat "drain energy" as the GOAL (prompt-induced — the prompt literally said
+  "ENERGY IS WHAT WINS FIGHTS"). Correct model: HEALTH→0 is the only win; energy is CAPACITY (gates punch
+  power/speed + defense reaction). Low energy ≠ KO; it means you can't defend → eat clean head shots →
+  lose HEALTH. Decision (locked): keep body→energy as a MEANS, not a win path.
+- Changes: `config.yaml` `zero_energy_next_hit_is_ko: false` (KO is health-only now — un-does the gassed-KO
+  on purpose); `reaction_penalty_at_empty` 0.12→0.25 (gassed = can't slip/block in time); bottom energy
+  band phrase fixed. `boxer_system.txt` reframed ("YOU WIN ONE WAY: TAKE HIS HEALTH TO ZERO… energy is
+  capacity, not a way to win"; body = "SAP HIM SO HE CAN'T DEFEND", the means to open the head).
+- Replays pruned to TWO fixed files: `replays/fifteen.json` + `replays/forty-five.json`; each scenario
+  ALWAYS overwrites its own via a new `output:` field honored by the runner. README slimmed to those two.
+  `test_e2e` now writes its mock replay to tempdir (keeps replays/ to the two curated files).
+- Verified: all unit tests PASS; 15s GPT-5-nano (`fifteen.json`) — drain-vs-health reasoning ratio
+  1.81:1→1.11:1, slips LAND 0→6, 0 parse errors. Tradeoff: 15s now less damaging (nobody gasses in 15s
+  with regen, so the fatigue→open-head chain never fires) — finishes need a long round.
+
+## NEXT: regenerate + commit
+- **Regenerate `replays/forty-five.json`** under the new model — it's still a pre-recenter run (old gassed
+  KO). Confirm a 45s fight still FINISHES (now a health-KO after fatigue degrades defense). 15s = everyday
+  test, 45s = occasional (token cost).
+- **Open: slips landing improved (0→6)** but verify timing reads right on screen.
 
 ## What exists
 - `PRD.md` — full design (long). Source of truth for mechanics.

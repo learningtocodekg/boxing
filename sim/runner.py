@@ -261,7 +261,7 @@ def run_fight(scenario_path: str | None = None, seed: int | None = None, output:
                       "calls": agents[red.name].call_count, "parse_errors": agents[red.name].parse_errors},
               "blue": {"health": round(blue.health, 1), "energy": round(blue.energy, 1),
                        "calls": agents[blue.name].call_count, "parse_errors": agents[blue.name].parse_errors}}
-    out = output or f"replays/{sc['name'].replace(' ', '_')}_{seed}.json"
+    out = output or sc.get("output") or f"replays/{sc['name'].replace(' ', '_')}_{seed}.json"
     rec.save(out, footer)
     if verbose:
         print(f"RESULT: {fight.result}" + (f" at {fight.ko_t:.2f}s" if fight.ko_t else ""))

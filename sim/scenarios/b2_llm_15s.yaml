@@ -2,5 +2,6 @@ name: B2 LLM vs LLM
 round_seconds: 15
 start_range: 4.0
 seed: 42
+output: replays/fifteen.json     # always overwrite the single 15s replay
 red:  {type: llm, name: Red}
 blue: {type: llm, name: Blue}

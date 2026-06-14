@@ -1,7 +1,56 @@
 # Left Off
 Date: 2026-06-14
 
-## Latest session — FIRST KO (open problem #2, RESOLVED)
+## Latest session — ENERGY RE-CENTERED as capacity (not a win condition)
+User feedback (from watching logs): the LLMs treat "drain his energy" as the GOAL. Wrong. The only goal
+is HEALTH → 0 (KO) + land the most hits. Energy is **capacity**: it gates how hard/fast you punch and how
+well you defend (slip/block/move). Low energy must NOT auto-KO — it just means you can't defend, so the
+opponent lands easy clean high-strength shots that take your HEALTH. Decision (locked via AskUserQuestion):
+**keep body→energy as a MEANS** (drain → his defense fails → clean head shots → health → KO), not a win path.
+
+### What got done
+1. **Killed energy as a win condition.** `config.yaml` `zero_energy_next_hit_is_ko: false` (gassed-KO path
+   kept config-gated for reference; `ko_energy_threshold` now unused). KO is health-only. This deliberately
+   un-does last session's first-KO mechanic — on purpose.
+2. **Strengthened low-energy defense degradation** so "tired = can't defend = eats clean 10s" is real:
+   `reaction_penalty_at_empty` 0.12 → **0.25** (at empty, reaction delay grows past most windups → can't
+   slip/block in time). Sagging-guard block-leak (0.20→0.75) already covered blocks.
+3. **Reframed the prompt** (`agents/prompts/boxer_system.txt`): replaced "ENERGY IS WHAT WINS FIGHTS" with
+   "YOU WIN ONE WAY: TAKE HIS HEALTH TO ZERO… energy is your CAPACITY TO FIGHT, not a way to win"; body
+   plan item "DRAIN HIM" → "SAP HIM SO HE CAN'T DEFEND… the body is the means, the head is where you
+   finish him"; fixed item 6 + the head/body opening line. Also fixed the bottom energy band phrase (was
+   "the next clean shot ends it" — promised the now-removed gassed-KO) → "guard's dropping, wide open to
+   clean shots".
+4. **Replays pruned to TWO fixed files.** Renamed the two most-recent → `replays/fifteen.json` (15s) and
+   `replays/forty-five.json` (45s); deleted the other 11. Each scenario now ALWAYS overwrites its own file
+   via a new `output:` field (`b2_llm_15s.yaml`→fifteen, `b2_llm_45s.yaml`→forty-five) honored by
+   `runner` (`output or sc.get("output") or …`). README slimmed to just those two run+watch commands and
+   the tests; fixed the now-false energy-KO blurb. `test_e2e` writes its mock replay to tempdir so
+   `replays/` stays exactly the two curated files.
+
+### Verified
+- `test_damage`, `test_energy` (updated the 0.25 assertion), `test_e2e` all PASS. `replays/` = exactly
+  `fifteen.json` + `forty-five.json`.
+- **15s GPT-5-nano, seed 42** (`replays/fifteen.json`): the framing shifted. Per-decision drain-vs-health
+  term ratio **1.81:1 → 1.11:1** (vs the old sagfix run); slips now **LAND 0 → 6** (avoid events), similar
+  slips chosen. Reasoning is now instrumental ("body shots… loosen his guard, setting up upstairs shots",
+  "duck to absorb minimal exposure"). 0 parse errors. Result: Blue decision, end health 78/88.
+- **Honest tradeoff:** the 15s fight is LESS damaging now (78/88 vs 60/66; 14 clean head vs 35) because
+  with the energy-KO gone + full regen NOBODY gasses in 15s (end energy ~56–60), so the fatigue→sag→
+  open-head→health chain never fires. Correct under the new model — finishes need a long round where
+  someone actually tires.
+
+## NEXT STEP (next session)
+- **Regenerate `replays/forty-five.json` under the new model** (`python main.py --scenario
+  sim/scenarios/b2_llm_45s.yaml`) — it's still a PRE-recenter run (shows the old gassed-out KO that can no
+  longer happen). Confirm the new model still produces a FINISH over 45s — now a health-KO after fatigue
+  degrades defense, NOT an energy-gate trip. This is the real test that removing the energy-KO left a
+  viable path to a knockout. Token note from user: 15s is the everyday test; run 45s only occasionally.
+- Still open: slips chosen often but landing improved (0→6) — watch whether timing reads right on screen.
+
+---
+
+## Earlier session — FIRST KO (open problem #2, RESOLVED) [superseded: energy-KO removed above]
 Resumed mid-stream: the *previous* (crashed) agent had slowed punches down for watchability — lengthened
 `timing.windup`/`recovery` (jab recovery .15→.38, up to uppercut .78) + reworked `renderer_2d` (minimap
 movement trails, lead/rear-hand poses). That work RAN fine (`replays/b2_15s_watchable.json`, 0 parse
