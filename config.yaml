@@ -54,6 +54,10 @@ energy:
   regen_per_sec: 1.2             # only while not throwing (idle/guard/circle)
   ratchet_caps: [75, 50, 25]     # once below a cap, can never exceed it again this round
   zero_energy_next_hit_is_ko: true
+  ko_energy_threshold: 1.0       # "empty" for the gassed-out KO. Regen bounces a spent fighter a hair
+                                 # above 0 between hits, so exact 0 is unreachable at impact; this is the
+                                 # floor of the bottom energy band ("completely spent — the next clean shot
+                                 # ends it") so the mechanic honors what the observation already promises.
   degradation:
     full_factor: 1.0
     empty_factor: 0.6
@@ -82,7 +86,10 @@ health:
     head_right:  0.10
     body_left:   0.70
     body_center: 0.65
-  block_factor: 0.20             # head shots into a high guard are heavily reduced
+  block_factor: 0.20             # head shots into a FRESH high guard are heavily reduced
+  block_factor_sagging: 0.75     # head block when the blocker is fully gassed: a tired guard SAGS and
+                                 # leaks (honors observation's "sagging" read). Lerps block_factor ->
+                                 # this as the blocker's energy falls from guard_sags_below_energy to 0.
   body_block_factor: 0.55        # body shots LEAK past a high guard (digging the body still tires him)
   block_leak_energy: 0.5
   glancing_mult: 0.6
@@ -100,9 +107,12 @@ footwork:
   step_distance_ft: 1.0
 
 timing:                           # phase durations (s); scaled by speed/strength/hand_speed
-  windup: {jab: 0.12, cross: 0.18, hook: 0.22, uppercut: 0.24}
+  # Lengthened so a human can SEE each punch: longer recovery keeps the glove extended on screen and
+  # stops a hand re-firing instantly (the real "you can't throw 20/sec" limiter — the time to retract
+  # and reset). Longer windups also make power shots clearly slippable.
+  windup: {jab: 0.18, cross: 0.26, hook: 0.32, uppercut: 0.36}
   impact_ticks: 1
-  recovery: {jab: 0.15, cross: 0.28, hook: 0.34, uppercut: 0.36}
+  recovery: {jab: 0.38, cross: 0.55, hook: 0.70, uppercut: 0.78}
   slip_duration: 0.18
   slip_recovery: 0.12
   duck_duration: 0.22

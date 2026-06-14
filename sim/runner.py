@@ -22,6 +22,7 @@ EPS = 1e-9
 _T = CONFIG["time"]
 _E = CONFIG["energy"]
 _H = CONFIG["health"]
+_OBS = CONFIG["observation"]
 _JAB_FIX = _H["jab_fixed_strength"]
 
 
@@ -93,14 +94,17 @@ def _impact(atk, dfn, hand, t, rng, fight, rec):
 
     blocked = dfn.guarding()
     roll = rng.uniform(*_H["contest_roll"])
-    raw = damage.raw_damage(pt, pl, _eff_strength(hand), atk.energy, lq, blocked, roll)
+    raw = damage.raw_damage(pt, pl, _eff_strength(hand), atk.energy, lq, blocked, roll, dfn.energy)
     hd, ed = damage.split(raw, pl, dfn.attrs.get("chin", 75))
 
-    gassed_ko = dfn.energy <= 0.0 and _E["zero_energy_next_hit_is_ko"] and not blocked
+    gassed_ko = dfn.energy < _E["ko_energy_threshold"] and _E["zero_energy_next_hit_is_ko"] and not blocked
     dfn.health -= hd
     dfn.energy = max(0.0, dfn.energy - ed)
     dfn.energy_ceiling = lower_ceiling(dfn.energy, dfn.energy_ceiling)
-    tag = "blocked" if blocked else ("glancing" if lq < 1.0 else "clean")
+    # A head shot that leaks past a SAGGING (gassed) guard landed for real — the tired guard didn't
+    # stop it, so it reads "clean", not "blocked" (matches the observation's "sagging" read).
+    sagging_leak = blocked and not pl.startswith("body") and dfn.energy < _OBS["guard_sags_below_energy"]
+    tag = ("glancing" if lq < 1.0 else "clean") if (not blocked or sagging_leak) else "blocked"
     rec.event(t, "land", {"by": atk.name, "punch": pt, "placement": pl, "quality": tag,
                           "health_dmg": round(hd, 2), "energy_dmg": round(ed, 2)})
     atk.last_action_desc = f"landed a {pt} to your {pl.replace('_', ' ')}"

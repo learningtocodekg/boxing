@@ -22,13 +22,29 @@ errors, strategic reasoning, slips now land and decide fights).
 - 15s before/after (Ollama qwen3:8b, seed 42): head shots 4→17, movement 2→7 cells, slips 3→16, parse
   errors 8→0. Confirmed the diagnosis (the head never opened because the OBSERVATION never let it).
 
-## NEXT: fix `sagging`-vs-block disagreement so tired-guard head shots land clean; then tune toward KOs
-- **Open (this session's finding): `sagging` overpromises** — 17 head shots, 0 CLEAN. The damage resolver
-  only checks binary `guarding()` and applies full `block_factor`, so a `sagging` (tired-but-up) guard
-  still blocks fully. Make block scale with the blocker's energy, OR downgrade what `sagging` claims.
-- **Open: more dynamic but less decisive** — movement+range-as-defense → fighters bank energy (end ~55
-  vs ~22) and take less damage; KO got further away. Needs balance tune (drain/leak/round length).
-- **Open: slips chosen a lot (16) but rarely LAND (1 avoid)** — slip-vs-impact timing still mostly misses.
+## DONE latest: `sagging`-vs-block disagreement FIXED — tired-guard head shots now land clean
+- **`damage.block_multiplier(placement, defender_energy)`**: head block lerps `block_factor` 0.20 →
+  `block_factor_sagging` 0.75 as the blocker's energy falls from `guard_sags_below_energy` (45) to 0
+  (same threshold the observation reads "sagging"). `raw_damage` takes `defender_energy`. `runner._impact`
+  passes `dfn.energy` and reclassifies a head shot leaking a sagging guard as `clean`. Body block unchanged.
+- Verified: new `test_sagging_guard_leaks_head_shots` + all unit tests PASS. 15s GPT-5-nano fight
+  (`replays/b2_15s_sagfix.json`): HEAD 35 clean / 0 glancing / 25 blocked (was 0 clean); 14 clean head
+  shots vs a SAGGING guard, real health damage; 0 parse errors.
+
+## DONE latest: FIRST KO — round lengthened + gassed-KO threshold fixed (open problem #2 RESOLVED)
+- Prev (crashed) agent slowed punch `timing` for watchability; that made the 15s fight less decisive.
+  Per user: kept the slow pace, lengthened the round (`sim/scenarios/b2_llm_45s.yaml`, 45s).
+- 45s run gassed both fighters to ~0.2 energy but no KO: `gassed_ko` needed `energy <= 0.0` exactly,
+  unreachable because `regen` bounces a spent fighter off 0 between hits. Fixed with config
+  `energy.ko_energy_threshold: 1.0` (floor of the "completely spent" band the observation promises);
+  `runner._impact` now uses `dfn.energy < ko_energy_threshold`.
+- Verified: all unit tests PASS; `replays/b2_45s_ko.json` (seed 42, GPT-5-nano) =
+  **Red wins by gassed-out KO at 35.75s** (first KO). Viewer shows the gold KO banner.
+
+## NEXT: watch + commit
+- **Watch `replays/b2_45s_ko.json`** in the 2D viewer (slow pace + KO read on screen).
+- **Commit** the resumed state (sagfix + slowdown + KO threshold all uncommitted).
+- **Open: slips chosen a lot but rarely LAND** — slip-vs-impact timing still mostly misses.
 
 ## What exists
 - `PRD.md` — full design (long). Source of truth for mechanics.

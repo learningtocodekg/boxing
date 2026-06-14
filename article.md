@@ -190,3 +190,30 @@ stepped off. The fight looks dynamic but became *less* decisive — nobody gasse
 moved further away. The body-spam stalemate became a keep-away stalemate. Lesson: defense and aggression
 are coupled through the energy economy; buffing the safe option (move/retreat/recover) without also
 raising the cost of passivity or the reward of pressure just relocates the degenerate equilibrium.
+
+## Observations (B3, KO + watchability pass)
+
+**A discrete KO trigger on a continuous variable that regenerates is effectively unreachable.** The
+finishing rule — "at energy 0, the next clean shot is an instant KO" — never once fired, even after we
+lengthened the round until *both* fighters bottomed out at ~0.2 energy and 66 clean shots landed. The
+condition was `defender_energy <= 0.0` checked at the moment of impact. But energy regenerates at
+1.2/s (0.06/tick), so a spent fighter always bounces a hair off zero between hits: at every clean
+landing the defender read 0.05, 0.17, 0.43 — never exactly 0. The exact-equality test on a variable
+with a restoring force is a measure-zero event. Worse, this was the *same* observation-vs-mechanics
+disagreement as the sagging guard: the bottom energy band already tells both fighters "completely spent
+— the next clean shot ends it" (floor = 1.0), while the engine demanded 0.0. The fix was to make the
+KO threshold the floor of the band the observation already advertises (`ko_energy_threshold: 1.0`), not
+to hunt for the magic instant of zero. First KO in the project landed immediately after: a fighter
+emptied his tank throwing a punch and got countered clean while spent. Lesson: when a state read
+promises a consequence, the mechanic must trigger on the *same boundary* the read uses — and a KO gate
+on a self-restoring quantity needs a band, never an equality.
+
+**Slowing punches for watchability silently un-did the decisiveness work.** A previous agent lengthened
+windup/recovery so a human could see each punch land (recovery jab .15→.38s, up to .78s for an
+uppercut). It worked visually, but longer recovery means fewer punches per second, which means fewer
+exchanges, which means less accumulated damage: the same 15s fight ended at health 80/83 (vs 60/66) and
+energy 58/52 (vs 30/27) — prettier and *less* decisive. Pacing and outcome are coupled through
+throughput. The fix was to decouple them on a different axis: keep the slow, legible pace and buy back
+the lost exchanges with round length (15s → 45s) rather than re-speeding the punches. Lesson: when a
+readability change moves an outcome metric, don't trade one against the other on the same knob — find
+the orthogonal lever (here, time) that restores the outcome without giving back the readability.

@@ -1,0 +1,6 @@
+name: B2 LLM vs LLM 45s
+round_seconds: 45
+start_range: 4.0
+seed: 42
+red:  {type: llm, name: Red}
+blue: {type: llm, name: Blue}

@@ -108,9 +108,9 @@ class Viewer:
             hx -= facing * int(0.07 * Hh)
         pygame.draw.circle(s, HEADC, (int(hx), int(hy)), head_r)
 
-        # arms / gloves (each hand by its own state)
+        # arms / gloves (each hand by its own state). left = lead hand, right = rear hand.
         shoulder = (cx + facing * 6, sh_y + 6)
-        for hand in (b["left"], b["right"]):
+        for is_lead, hand in ((True, b["left"]), (False, b["right"])):
             st = hand["state"]
             pt = hand.get("punch_type", "")
             pl = hand.get("placement", "head_center")
@@ -123,8 +123,10 @@ class Viewer:
                     g = (cx + facing * 0.44 * Hh, hip_y - 0.10 * Hh)     # extended to body
             elif st == "guard":
                 g = (cx + facing * 0.12 * Hh, sh_y - 0.02 * Hh)          # up at the chin
-            else:  # free
-                g = (cx + facing * 0.08 * Hh, hip_y + 0.02 * Hh)         # down
+            elif is_lead:  # free LEAD hand: pawing out front in a stance (not dangling)
+                g = (cx + facing * 0.30 * Hh, sh_y + 0.04 * Hh)
+            else:          # free REAR hand: kept up by the chin
+                g = (cx + facing * 0.10 * Hh, sh_y - 0.02 * Hh)
             gc = PUNCH.get(pt, pal["glove"]) if st in ("windup", "recovery") else pal["glove"]
             pygame.draw.line(s, pal["torso"], shoulder, g, 13)
             pygame.draw.circle(s, gc, (int(g[0]), int(g[1])), glove_r)
@@ -156,15 +158,22 @@ class Viewer:
 
     def draw_minimap(self, fr):
         s = self.screen
-        mx, my, ms = 1108, 14, 150
+        mx, my, ms = 1020, 14, 244
         pygame.draw.rect(s, (45, 45, 52), (mx, my, ms, ms))
         pygame.draw.rect(s, (90, 90, 98), (mx, my, ms, ms), 2)
+
+        def to_px(p):
+            return (mx + int(p[0] / RING_FT * ms), my + int(p[1] / RING_FT * ms))
+
+        trail = self.frames[max(0, self.i - 40):self.i + 1]   # last ~2s of motion
         for who, pal in (("red", RED), ("blue", BLUE)):
-            p = fr[who]["pos"]
-            px = mx + int(p[0] / RING_FT * ms)
-            py = my + int(p[1] / RING_FT * ms)
-            pygame.draw.circle(s, pal["torso"], (px, py), 8)
-        s.blit(self.f_sm.render("ring (top-down)", True, DIM), (mx, my + ms + 2))
+            pts = [to_px(f[who]["pos"]) for f in trail]
+            if len(pts) > 1:
+                pygame.draw.lines(s, pal["glove"], False, pts, 2)   # path = circling/footwork
+            px, py = to_px(fr[who]["pos"])
+            pygame.draw.circle(s, pal["torso"], (px, py), 11)
+            pygame.draw.circle(s, WHITE, (px, py), 11, 2)
+        s.blit(self.f_sm.render("ring (top-down) - lines show movement", True, DIM), (mx, my + ms + 2))
 
     def wrap(self, text, width):
         words, lines, cur = text.split(), [], ""
@@ -214,12 +223,12 @@ class Viewer:
         self.bar(360, 62, "EN", fr["blue"]["energy"], 100, (180, 150, 70))
         self.draw_minimap(fr)
 
-        # play-by-play (events up to now, last 16)
-        s.blit(self.f.render("PLAY-BY-PLAY", True, WHITE), (1020, 180))
-        shown = [(t, who, txt) for (t, (who, txt)) in self.log if t <= fr["t"] + 1e-9][-16:]
+        # play-by-play (events up to now, last 14)
+        s.blit(self.f.render("PLAY-BY-PLAY", True, WHITE), (1020, 280))
+        shown = [(t, who, txt) for (t, (who, txt)) in self.log if t <= fr["t"] + 1e-9][-14:]
         for k, (t, who, txt) in enumerate(shown):
             col = RED["ink"] if who == "R" else BLUE["ink"]
-            s.blit(self.f_sm.render(f"{t:4.2f} {txt}"[:34], True, col), (1020, 206 + k * 18))
+            s.blit(self.f_sm.render(f"{t:4.2f} {txt}"[:34], True, col), (1020, 306 + k * 18))
 
         # reasoning panels
         if self.show_reason:
