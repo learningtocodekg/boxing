@@ -53,13 +53,26 @@ def test_sagging_guard_leaks_head_shots():
     fresh = D.raw_damage("hook", "head_center", 10, 100.0, 1.0, True, 1.0, defender_energy=100.0)
     sagged = D.raw_damage("hook", "head_center", 10, 100.0, 1.0, True, 1.0, defender_energy=0.0)
     assert approx(fresh, 9.6 * 0.20), fresh
-    assert approx(sagged, 9.6 * 0.75), sagged       # block_factor_sagging at empty
+    assert approx(sagged, 9.6 * 1.0), sagged        # hook (power 1.6) blasts through a fully sagging guard
     assert sagged > fresh
     # at the sag threshold the guard is still tight; just inside it has begun to leak
     at_thresh = D.raw_damage("hook", "head_center", 10, 100.0, 1.0, True, 1.0, defender_energy=45.0)
     assert approx(at_thresh, fresh), at_thresh
     body = D.raw_damage("hook", "body_left", 10, 100.0, 1.0, True, 1.0, defender_energy=0.0)
     assert approx(body, 7.2 * 0.55), body           # body block is flat, unaffected by fatigue
+
+
+def test_sagging_guard_leaks_power_more_than_jab():
+    # The whole point of the power-scaled sag leak: against a gassed guard a heavy punch leaks far more
+    # than a light one. The jab still only cracks it (0.75x at empty); the hook blasts through (~1.0x).
+    jab_leak = D.block_multiplier("head_center", 0.0, "jab")
+    hook_leak = D.block_multiplier("head_center", 0.0, "hook")
+    assert approx(jab_leak, 0.75), jab_leak          # jab unchanged: power_mult 1.0
+    assert approx(hook_leak, 1.0), hook_leak         # 0.20 + 0.55*1.6 = 1.08 -> capped at 1.0
+    assert hook_leak > jab_leak
+    # a FRESH guard blocks both tight regardless of power (no sag yet)
+    assert approx(D.block_multiplier("head_center", 100.0, "jab"), 0.20)
+    assert approx(D.block_multiplier("head_center", 100.0, "hook"), 0.20)
 
 
 def test_degraded_attacker_hits_softer():
@@ -71,6 +84,7 @@ def test_degraded_attacker_hits_softer():
 if __name__ == "__main__":
     for fn in [test_clean_max_hook_to_chin, test_body_shot_drains_energy_more_than_health,
                test_jab_uses_fixed_strength, test_block_heavily_reduces, test_body_leaks_past_guard,
-               test_sagging_guard_leaks_head_shots, test_degraded_attacker_hits_softer]:
+               test_sagging_guard_leaks_head_shots, test_sagging_guard_leaks_power_more_than_jab,
+               test_degraded_attacker_hits_softer]:
         fn()
     print("--- PASS --- damage: formula, head/body split, jab-fixed, block, degradation verified")

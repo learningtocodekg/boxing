@@ -295,3 +295,44 @@ that *advertises* an opening ("he's sagging") plus a prompt that *says* "load th
 enough; the model won't pay the power shot's cost unless the opening rewards power specifically (e.g. a
 sagging guard should leak hooks far more than jabs). Telling the model an opening exists and rewarding it
 for exploiting that opening with the expensive tool are two different things.
+
+## Observations (B3, making power shots pay — and the symmetry ceiling)
+
+**Raising a tool's payoff does nothing if the model never reaches for the tool — and the bottleneck was
+not where it looked.** We fixed the jab-fest the principled way first: the sagging-guard block-leak now
+scales with punch power (a tired arm can't absorb a hook's momentum), so a fully-sagging guard still
+parries a jab at 0.75 but a hook blasts through at ~1.0. Correct, unit-tested, jab behavior byte-identical
+— and it moved the fight not at all (round 2 still 32 jab / 2 cross / 1 hook clean). The reason: the
+models threw 47 jabs to 4 hooks and 0 uppercuts. A payoff buff on a shot that's never thrown is inert.
+The natural suspect was *range* (hooks/uppercuts are short-range, must be in the pocket) — but measuring
+the actual distance per frame killed that theory: hooks were legal 62% of frames, uppercuts 40%. The
+constraint was purely behavioral, and only the reasoning logs revealed it: the models *explicitly named*
+the sagging openings ("his guard shows head_right sagging and head_center sagging") and then chose a
+"quick, cheap jab to his sagging head_center opening" — *to conserve energy*. The conservation reflex was
+overriding the finish.
+
+**The conservation reflex fires at exactly the moment it shouldn't, because the trigger and the cost peak
+together.** A guard only sags when its owner is gassed — which, with identical boxers fighting in lockstep,
+is exactly when the *attacker* is also gassed and most reluctant to spend. So the one opening that wins
+the fight appears precisely when both fighters are most determined to save energy, and the cheap jab wins
+the cost-benefit every time. Worse, the reflex was *miscalibrated*: the energy curve puts a hook at only
+~1–1.5 energy, barely more than a jab, but the models reasoned about power shots as if they were
+expensive. The fix that actually worked was a prompt nudge aimed squarely at this reflex — "a sagging head
+is the moment to SPEND, not save; a loaded hook costs barely more than a jab but can finish him; pecking
+wastes the one opening that wins the fight." With both levers in place (mechanic *and* nudge), round 2
+power shots went 7→21 thrown, 3→14 clean, total clean lands 35→54, and the loser's end health dropped from
+~60 to ~36. The mechanic made power *pay*; the nudge made them *throw* it. Neither alone sufficed. Lesson:
+when an agent won't use a capability, separate "is it rewarded?" from "is it being selected?" — they have
+different fixes, and aggregate stats answer neither; the reasoning string does.
+
+**Identical boxers cap the fight at a Draw — the finish needs asymmetry, not more tuning.** With both
+levers working, we ran the continuation out to a third round. Damage kept accumulating (cumulative end
+health across R1→R2→R3: 75/79 → 36/40 → 20/20) but it *decelerated* and ended in a Draw at the energy
+floor, no KO. Two coupled reasons: (1) once both fighters hit 0 energy, total exhaustion swings them
+*back* to maximal conservation — power throws collapsed 8→1 in round 3 — and `output_factor` caps damage
+at 0.6, so the round grinds rather than finishes; (2) the deeper ceiling is symmetry: identical boxers on
+a fixed seed wear down in lockstep (R3 ended 19.9 vs 20.5 health, 0.0 vs 0.0 energy), so neither ever
+falls far enough behind for the other to load up on a sagging guard while still having gas of his own — a
+real KO needs one fighter to be *more* gassed than the other. The wear-down model is now sound and the
+power-shot fix works; the missing ingredient for a knockout is divergence between the fighters (distinct
+stats/styles), not another balance constant.

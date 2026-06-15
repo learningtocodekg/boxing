@@ -13,18 +13,25 @@ def strength_value(punch_type: str, strength: float) -> float:
     return _H["jab_fixed_strength"] if punch_type == "jab" else strength
 
 
-def block_multiplier(placement: str, defender_energy: float) -> float:
+def block_multiplier(placement: str, defender_energy: float, punch_type: str = "jab") -> float:
     """Fraction of a punch a block lets through. Body leaks at a flat factor. The HEAD guard tightens
     to block_factor while fresh, but SAGS as the blocker tires: below guard_sags_below_energy it lerps
     block_factor -> block_factor_sagging (reached at empty), so a gassed guard leaks the head shot the
-    observation already reads as "sagging" (PRD §9.2)."""
+    observation already reads as "sagging" (PRD §9.2).
+
+    The sag-leak scales with PUNCH POWER: a tired arm can't absorb a heavy shot's momentum, so a sagging
+    guard barely slows a hook/uppercut but still partly parries a light jab. The extra leak past a fresh
+    guard is multiplied by the punch's power_mult (jab 1.0 -> unchanged; hook 1.6 -> blasts through),
+    capped at letting the whole punch land. This is what makes loading up the power shot pay off once his
+    guard sags, instead of cracking a tired guard cheaply with the jab."""
     if placement.startswith("body"):
         return _H["body_block_factor"]
     base = _H["block_factor"]
     if defender_energy >= _SAG_AT:
         return base
     frac = (_SAG_AT - defender_energy) / _SAG_AT      # 0 at the threshold -> 1 at empty
-    return base + (_H["block_factor_sagging"] - base) * frac
+    power = _H["punch_type_power_mult"][punch_type]   # jab 1.0; heavier punches leak a sagging guard more
+    return min(1.0, base + (_H["block_factor_sagging"] - base) * frac * power)
 
 
 def raw_damage(punch_type: str, placement: str, strength: float,
@@ -34,7 +41,7 @@ def raw_damage(punch_type: str, placement: str, strength: float,
     land_quality: 1.0 clean, config glancing_mult at the edge of reach. contest_roll: seeded ~[0.9,1.1].
     defender_energy gates how much a HEAD guard sags (tired guards block worse)."""
     base = strength_value(punch_type, strength) * _H["damage_per_strength"]
-    block_mult = block_multiplier(placement, defender_energy) if blocked else 1.0
+    block_mult = block_multiplier(placement, defender_energy, punch_type) if blocked else 1.0
     return (base
             * _H["punch_type_power_mult"][punch_type]
             * _H["placement_mult"][placement]

@@ -1,7 +1,66 @@
 # Left Off
-Date: 2026-06-14
+Date: 2026-06-15
 
-## Latest session — MULTI-ROUND CONTINUATION (round 2 carries round 1's state) + 15s realism analysis
+## Latest session — POWER SHOTS NOW PAY OFF (jab-fest broken) + 3-round continuation analysis
+Goal: make power shots pay off so the fight isn't a jab-fest (open #1). Then: "run a round 3 and analyze."
+
+### Two-lever fix (BOTH were needed)
+1. **Mechanic (`engine/damage.py`)** — `block_multiplier` now takes `punch_type`; the sagging-guard
+   leak SCALES BY PUNCH POWER. A fully-sagging guard still parries a jab at 0.75 (byte-identical to
+   before) but a hook blasts through at ~1.0 (0.20 + 0.55·1.6, capped), cross 0.92, uppercut ~1.0.
+   `raw_damage` forwards `punch_type`; runner needed NO change (already passes `pt`). New test
+   `test_sagging_guard_leaks_power_more_than_jab`; updated the existing sagging test (hook now ~1.0 not
+   0.75). All unit tests PASS.
+2. **Prompt nudge (`agents/prompts/boxer_system.txt`, item 6)** — the mechanic ALONE did nothing
+   (R2 still 32 jab / 2 cross / 1 hook clean). Diagnosis: power shots were barely THROWN (47 jab vs 4
+   hook / 0 uppercut), and NOT because of range (hooks legal 62% of frames, uppercuts 40%). The reasoning
+   logs showed the LLMs EXPLICITLY name the sagging openings then jab them "to conserve energy" — the
+   conservation reflex overrides the finish, and it fires exactly when both (identical) fighters are
+   gassed. So added a nudge: a sagging head is the moment to SPEND, a loaded hook costs barely more than
+   a jab but can finish him, pecking wastes the one opening that wins the fight.
+
+### Verified — both levers together broke the jab-fest (R2, the worn/sagging round)
+| R2 metric                 | mechanic only | + prompt nudge |
+|---------------------------|---------------|----------------|
+| power shots THROWN        | 7             | **21**         |
+| power shots CLEAN         | 3             | **14** (10 cross, 4 hook) |
+| total clean lands         | 35            | **54**         |
+| end health (Red / Blue)   | 59.7 / 58.1   | **36.4 / 39.7** |
+| end energy                | 24 / 22       | 16.6 / 19.0    |
+
+R1 (fresh, no sag) unchanged — nudge correctly doesn't fire there. 0 parse errors throughout.
+
+### Round 3 (user ran it; `replays/fifteen_r3.json`) — Draw, no KO
+Cumulative health arc R1→R2→R3: **75/79 → 36/40 → 20/20**; energy floor 0/0 at R3 end. Damage
+ACCELERATED into R2 then DECELERATED in R3: once both fighters bottom out at 0 energy, total exhaustion
+swings them BACK to maximal conservation (hook throws collapsed 8→1) and `output_factor` caps damage at
+0.6, so the round grinds instead of finishing. Deeper ceiling: identical boxers on a fixed seed wear down
+in LOCKSTEP (R3 ended 19.9 vs 20.5 hp, 0.0 vs 0.0 en) — neither falls far enough behind for the other to
+load up while still having gas. **A KO needs ASYMMETRY between the fighters, not another balance tweak.**
+
+### Broken / Open
+1. **No KO under symmetry.** The wear-down + power-shot model is sound, but identical boxers gas in
+   lockstep → Draw at the energy floor. Finish needs distinct stats/styles (deferred roster work) so one
+   fighter sags first and the other can capitalize while still fresh enough to load up.
+2. **Continuation is still a manual 3-scenario chain** (`b2_llm_15s.yaml` → `_r2` → `_r3`, each
+   `carry_from` the prior replay). No auto round-loop / KO-stop / aggregate scorecard / between-round
+   ceiling lift = roadmap B4.
+3. **3D viewer still not eyeballed live** by me (carried over). R2/R3 not watched on screen — power
+   shots/sagging not visually confirmed.
+4. Transient: R3's first launch died on an `APIConnectionError` (network blip); a re-run succeeded. Not
+   a code issue.
+
+## NEXT STEP (next session)
+**Give the boxers ASYMMETRY so a fight can actually finish** (open #1). The wear-down + power-shot levers
+work; the only thing blocking a KO is that identical fighters never diverge. Options: (a) distinct
+roster stats (e.g. different stamina/recovery or chin) so one sags first; (b) seed/style asymmetry. Then
+re-run the R1→R2→R3 continuation and confirm the worn-down fighter eats a power-shot finish (a real
+health-KO, not the removed energy-gate). Keep the 15s continuation as the test; do NOT touch
+`forty-five.json`. (Token note: 15s is the everyday test, ~minutes per round.)
+
+---
+
+## PRIOR session — MULTI-ROUND CONTINUATION (round 2 carries round 1's state) + 15s realism analysis
 Goal: read into `replays/fifteen.json`, figure out what makes the game better/more realistic. Then (if R1
 looks good) run a **round 2 that CONTINUES from round 1** — same health, +5 energy each for the rest break.
 Explicit: do NOT touch / regenerate `forty-five.json` this session.

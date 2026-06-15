@@ -81,13 +81,32 @@ errors, strategic reasoning, slips now land and decide fights).
 - REALISM ANALYSIS of fifteen.json drove this: the single biggest gap was "nobody gasses in 15s so the
   whole fatigue→sag→clean-shot→KO chain is dead." Multi-round continuation makes it fire.
 
-## NEXT: make power shots pay off (open #1) — fight is still a jab-fest
-- R2's clean-shot jump came from JABS leaking the sagging guard (32 jab / 3 cross / 0 hook clean), not
-  power punches. No incentive to risk a slow exposing power shot when the jab already cracks a tired guard.
-  Fix: prompt nudge (switch to power-to-head once he reads "sagging") OR scale the sag block-leak by punch
-  power so a tired guard leaks hooks/uppercuts far more than jabs. Re-run R1→R2 to confirm power lands.
-- DEFERRED (not this session, per user): regenerate `replays/forty-five.json`; eyeball viewer_3d.html live.
-- Continuation is still a manual 2-scenario setup — promote to a real round loop (auto-stop on KO,
+## DONE latest: POWER SHOTS PAY OFF — jab-fest broken (open #1 RESOLVED, took BOTH levers)
+- **Mechanic (`engine/damage.py`)**: `block_multiplier(placement, defender_energy, punch_type)` scales
+  the sagging-guard leak by PUNCH POWER — jab stays 0.75 at empty (unchanged), hook ~1.0 (blasts through),
+  cross 0.92, uppercut ~1.0. `raw_damage` forwards `punch_type`; runner unchanged. New test
+  `test_sagging_guard_leaks_power_more_than_jab`; all unit tests PASS.
+- **The mechanic alone did NOTHING** (R2 still 32 jab / 2 cross / 1 hook clean). Power shots were barely
+  THROWN (47 jab vs 4 hook / 0 uppercut) — and NOT a range issue (hooks legal 62% of frames, uppercuts
+  40%). Reasoning logs: LLMs name the sagging openings then jab them "to conserve energy". So added a
+  **prompt nudge** (`boxer_system.txt` item 6): a sagging head = the moment to SPEND, a loaded hook costs
+  barely more than a jab, pecking wastes the opening.
+- **Both together (R2):** power thrown 7→21, power clean 3→14, total clean 35→54, loser health ~60→~36.
+  R1 (fresh) unchanged. 0 parse errors.
+
+## DONE latest: 3-ROUND CONTINUATION run out → Draw, no KO (symmetry is the ceiling)
+- Cumulative health R1→R2→R3: 75/79 → 36/40 → 20/20; energy floor 0/0 by R3 end. Damage accelerates into
+  R2, DECELERATES in R3: at 0 energy both swing back to max conservation (hook throws 8→1) + output_factor
+  caps damage at 0.6 → the round grinds. Deeper cause: identical boxers gas in LOCKSTEP (R3 19.9 vs 20.5
+  hp, 0.0 vs 0.0 en) → neither falls behind enough to capitalize. KO needs ASYMMETRY, not more tuning.
+- `sim/scenarios/b2_llm_15s_r3.yaml` added (carry_from fifteen_r2.json, +5 rest → fifteen_r3.json).
+
+## NEXT: give boxers ASYMMETRY so a fight can finish (open #1)
+- Wear-down + power-shot levers work; identical fighters never diverge → Draw. Options: distinct roster
+  stats (stamina/recovery/chin so one sags first) or style/seed asymmetry. Re-run R1→R2→R3, confirm the
+  worn fighter eats a power-shot health-KO.
+- DEFERRED (per user): regenerate `replays/forty-five.json`; eyeball viewer_3d.html live (R2/R3 unwatched).
+- Continuation is still a manual 3-scenario chain — promote to a real round loop (auto-stop on KO,
   scorecard, between-round ceiling lift) = roadmap B4.
 
 ## What exists
