@@ -1,6 +1,7 @@
 # Build State
 Current phase: **B3 — dynamics + balance pass UNDERWAY (B1/B2 built & verified).** Full engine + agents
-+ runner; BOTH viewers (2D pygame side-view `renderer_2d` = readable; 3D ursina = alt). Mock e2e passes;
++ runner; THREE viewers: 2D pygame side-view `renderer_2d` (readable); **3D browser `render/viewer_3d.html`
+(Three.js, drag-and-drop, NEW — primary 3D viewer)**; legacy 3D ursina (superseded). Mock e2e passes;
 LLM-vs-mock on Ollama (qwen3:8b) validated with the new strategy prompt + slip/balance fixes (0 parse
 errors, strategic reasoning, slips now land and decide fights).
 
@@ -57,7 +58,18 @@ errors, strategic reasoning, slips now land and decide fights).
   1.81:1→1.11:1, slips LAND 0→6, 0 parse errors. Tradeoff: 15s now less damaging (nobody gasses in 15s
   with regen, so the fatigue→open-head chain never fires) — finishes need a long round.
 
-## NEXT: regenerate + commit
+## DONE latest: 3D BROWSER VIEWER (Three.js) — `render/viewer_3d.html`
+- Goal: 2D is hard to read; wants simple 3D. Past Python Ursina was "really bad" → Python desktop-3D
+  ruled out. Locked: Three.js in-browser + drag-and-drop (no server/build/assets). Pure new renderer over
+  the existing replay JSON — zero engine changes.
+- Primitive boxers (sphere/capsule/cylinder + dynamic arms). Poses mirror engine hand states
+  (guard/windup/recovery + head/body placement); defense duck=crouch, slip=head shift; impact flash
+  yellow=clean / gray=blocked; OrbitControls camera; HUD + reasoning panels; frame interpolation; full
+  playback controls. Fixed a +X-vs-+Z forward-axis bug (punches would've fired sideways).
+- Verified: fields match `replays/fifteen.json`; `node --check` clean; user said "looks great". NOT yet
+  eyeballed live in a browser by me. Open: make blocked flash a more distinct color / add BLOCK label?
+
+## NEXT: eyeball viewer_3d.html in a browser (see left_off.md); then regenerate forty-five.json + commit
 - **Regenerate `replays/forty-five.json`** under the new model — it's still a pre-recenter run (old gassed
   KO). Confirm a 45s fight still FINISHES (now a health-KO after fatigue degrades defense). 15s = everyday
   test, 45s = occasional (token cost).

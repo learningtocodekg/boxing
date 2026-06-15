@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Glass Joe Minds — 3D</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root { --red:#d24646; --blue:#4a78dc; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:#16161a; color:#e8e8ee;
+               font-family: Consolas, "SF Mono", Menlo, monospace; overflow:hidden; }
+  #c { position:fixed; inset:0; display:block; }
+
+  #drop { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+          flex-direction:column; gap:14px; background:rgba(12,12,16,.92); z-index:50; text-align:center; }
+  #drop.hidden { display:none; }
+  #drop h1 { font-size:20px; margin:0; letter-spacing:.5px; }
+  #drop p { color:#9aa; margin:0; font-size:13px; line-height:1.6; }
+  #drop .box { border:2px dashed #44485a; border-radius:14px; padding:40px 56px; transition:.15s; }
+  #drop.dragover .box { border-color:#7da0ff; background:rgba(125,160,255,.08); }
+  #drop input { display:none; }
+  #drop label { color:#7da0ff; text-decoration:underline; cursor:pointer; }
+
+  /* HUD */
+  #hud { position:fixed; top:0; left:0; right:0; padding:12px 16px; pointer-events:none;
+         display:flex; justify-content:space-between; gap:16px; z-index:10; }
+  .side { width:340px; }
+  .side.r { text-align:right; }
+  .name { font-size:16px; font-weight:bold; }
+  .name.red { color:var(--red); } .name.blue { color:var(--blue); }
+  .bar { height:11px; border-radius:6px; background:#2a2a33; margin:4px 0; overflow:hidden; position:relative; }
+  .bar > i { display:block; height:100%; transition:width .08s linear; }
+  .bar .hp { background:linear-gradient(90deg,#e85b5b,#ff8e6b); }
+  .bar.r .hp, .bar.r .en { float:right; }
+  .bar .en { background:linear-gradient(90deg,#ffd24a,#9be07a); }
+  .lab { font-size:11px; color:#99a; }
+  #center { text-align:center; }
+  #clock { font-size:24px; font-weight:bold; }
+  #phase { font-size:12px; color:#9aa; letter-spacing:2px; }
+  #result { font-size:15px; color:#ffe06a; min-height:18px; margin-top:4px; }
+
+  /* reasoning */
+  .reason { position:fixed; bottom:64px; width:360px; font-size:12px; line-height:1.5;
+            background:rgba(18,18,24,.78); border-radius:10px; padding:10px 12px; z-index:10; }
+  #reasonR { left:14px; border-left:3px solid var(--red); }
+  #reasonB { right:14px; border-left:3px solid var(--blue); }
+  .reason .hdr { font-weight:bold; margin-bottom:4px; }
+  .reason .meta { color:#9aa; font-size:11px; margin-top:5px; }
+
+  /* controls */
+  #ctl { position:fixed; bottom:0; left:0; right:0; height:52px; z-index:20;
+         display:flex; align-items:center; gap:12px; padding:0 16px;
+         background:linear-gradient(0deg,rgba(12,12,16,.95),rgba(12,12,16,.0)); }
+  #ctl button { background:#2a2a33; color:#e8e8ee; border:1px solid #3a3a47; border-radius:7px;
+                padding:6px 12px; cursor:pointer; font-family:inherit; font-size:13px; }
+  #ctl button:hover { background:#363643; }
+  #seek { flex:1; cursor:pointer; }
+  #tlabel, #spd { font-size:12px; color:#bbc; min-width:64px; }
+  .hide { display:none !important; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="drop" class="dragover">
+  <div class="box">
+    <h1>Glass Joe Minds — 3D Viewer</h1>
+    <p>Drag a replay <b>.json</b> here, or <label for="file">choose a file</label>.<br>
+       (e.g. <code>replays/fifteen.json</code>)</p>
+    <input id="file" type="file" accept=".json,application/json" />
+  </div>
+</div>
+
+<div id="hud" class="hide">
+  <div class="side l">
+    <div class="name red" id="nameR">Red</div>
+    <div class="bar"><i class="hp" id="hpR"></i></div>
+    <div class="bar"><i class="en" id="enR"></i></div>
+    <div class="lab"><span id="hpRt"></span> HP · <span id="enRt"></span> EN</div>
+  </div>
+  <div id="center">
+    <div id="clock">0.0s</div>
+    <div id="phase">—</div>
+    <div id="result"></div>
+  </div>
+  <div class="side r">
+    <div class="name blue" id="nameB">Blue</div>
+    <div class="bar r"><i class="hp" id="hpB"></i></div>
+    <div class="bar r"><i class="en" id="enB"></i></div>
+    <div class="lab"><span id="hpBt"></span> HP · <span id="enBt"></span> EN</div>
+  </div>
+</div>
+
+<div class="reason hide" id="reasonR"></div>
+<div class="reason hide" id="reasonB"></div>
+
+<div id="ctl" class="hide">
+  <button id="play">⏸ Pause</button>
+  <input id="seek" type="range" min="0" max="100" value="0" step="1" />
+  <span id="tlabel">0 / 0</span>
+  <button id="slow">−</button><span id="spd">1.0×</span><button id="fast">+</button>
+  <button id="reset">⟲</button>
+  <button id="toggleR">Reasoning</button>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ---------- scene ----------
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x16161a);
+scene.fog = new THREE.Fog(0x16161a, 22, 46);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+camera.position.set(0, 11, 17);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 3, 0);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI * 0.49;
+
+scene.add(new THREE.HemisphereLight(0xbfcfff, 0x202028, 0.8));
+const key = new THREE.DirectionalLight(0xffffff, 1.1);
+key.position.set(8, 18, 10); key.castShadow = true;
+key.shadow.mapSize.set(1024,1024);
+key.shadow.camera.left = -14; key.shadow.camera.right = 14;
+key.shadow.camera.top = 14; key.shadow.camera.bottom = -14;
+scene.add(key);
+
+// ---------- ring ----------
+const RING = 16;                       // feet (from header.config.ring.size_ft, default 16)
+const ring = new THREE.Group(); scene.add(ring);
+
+const floor = new THREE.Mesh(
+  new THREE.BoxGeometry(RING+2, 0.4, RING+2),
+  new THREE.MeshStandardMaterial({ color:0x4a4640, roughness:.95 }));
+floor.position.y = -0.2; floor.receiveShadow = true; ring.add(floor);
+
+const canvasMat = new THREE.Mesh(
+  new THREE.PlaneGeometry(RING, RING),
+  new THREE.MeshStandardMaterial({ color:0x6f6a62, roughness:.9 }));
+canvasMat.rotation.x = -Math.PI/2; canvasMat.position.y = 0.02;
+canvasMat.receiveShadow = true; ring.add(canvasMat);
+
+// grid + center
+const grid = new THREE.GridHelper(RING, RING, 0x55514a, 0x44413c);
+grid.position.y = 0.03; ring.add(grid);
+
+// posts + ropes
+const postMat = new THREE.MeshStandardMaterial({ color:0x222228, roughness:.6 });
+const ropeMats = [0xd23a3a, 0xe8e8ee, 0x4a78dc];
+const half = RING/2;
+const corners = [[-half,-half],[half,-half],[half,half],[-half,half]];
+for (const [x,z] of corners) {
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,5,12), postMat);
+  post.position.set(x, 2.5, z); post.castShadow = true; ring.add(post);
+}
+for (let r=0; r<3; r++) {
+  const y = 1.6 + r*1.1;
+  for (let i=0; i<4; i++) {
+    const [ax,az] = corners[i], [bx,bz] = corners[(i+1)%4];
+    const a = new THREE.Vector3(ax,y,az), b = new THREE.Vector3(bx,y,bz);
+    const len = a.distanceTo(b);
+    const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,len,8),
+      new THREE.MeshStandardMaterial({ color: ropeMats[r], roughness:.5 }));
+    rope.position.copy(a).lerp(b,0.5);
+    rope.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),
+      b.clone().sub(a).normalize());
+    ring.add(rope);
+  }
+}
+
+// ring coords (0..RING, 0..RING) -> world (centered at origin)
+const ringToWorld = (x, y) => new THREE.Vector3(x - half, 0, y - half);
+
+// ---------- boxer figure (primitives) ----------
+function makeBoxer(hex) {
+  const g = new THREE.Group();
+  const skin = new THREE.MeshStandardMaterial({ color:0xf0d6b8, roughness:.8 });
+  const body = new THREE.MeshStandardMaterial({ color:hex, roughness:.7 });
+  const gloveMat = new THREE.MeshStandardMaterial({ color:hex, roughness:.5,
+    emissive:0x000000 });
+
+  const mesh = (geo, mat, y) => { const m = new THREE.Mesh(geo, mat); m.position.y = y;
+    m.castShadow = true; return m; };
+
+  // legs
+  const legGeo = new THREE.CylinderGeometry(0.16,0.13,2.6,10);
+  const lL = mesh(legGeo, body, 1.3); lL.position.x = -0.22; g.add(lL);
+  const lR = mesh(legGeo, body, 1.3); lR.position.x =  0.22; g.add(lR);
+  // torso
+  const torso = mesh(new THREE.CapsuleGeometry(0.45,1.3,6,12), body, 3.4); g.add(torso);
+  // head
+  const head = mesh(new THREE.SphereGeometry(0.42,18,16), skin, 4.7);
+  g.add(head);
+  // shoulders anchor heights
+  const SH_Y = 4.0, SH_Z = 0.42;
+
+  // arms: a thin cylinder we re-orient each frame from shoulder->glove + a glove sphere
+  function makeArm() {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.11,1,8), body);
+    arm.castShadow = true;
+    const glove = new THREE.Mesh(new THREE.SphereGeometry(0.26,14,12), gloveMat);
+    glove.castShadow = true;
+    g.add(arm); g.add(glove);
+    return { arm, glove };
+  }
+  const armL = makeArm(), armR = makeArm();
+
+  g.userData = { head, torso, armL, armR, gloveMat, SH_Y, SH_Z, baseY:0 };
+  return g;
+}
+
+// orient a unit-cylinder mesh to span from a->b
+function spanCylinder(mesh, a, b) {
+  const dir = b.clone().sub(a);
+  const len = dir.length();
+  mesh.position.copy(a).add(b).multiplyScalar(0.5);
+  mesh.scale.set(1, len, 1);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.normalize());
+}
+
+const red  = makeBoxer(0xd24646);
+const blue = makeBoxer(0x4a78dc);
+scene.add(red, blue);
+
+// glove local target by hand state. Local space: +z = forward (toward opponent), +x = that hand's side
+function gloveLocal(state, placement, side) {
+  // side: -1 left, +1 right
+  const headY = 4.55, bodyY = 3.0, chinY = 4.2;
+  const toHead = placement.startsWith('head');
+  if (state === 'recovery')           // punch landed / extended out front
+    return new THREE.Vector3(side*0.12, toHead ? headY : bodyY, 1.55);
+  if (state === 'windup')             // cocked back
+    return new THREE.Vector3(side*0.5, 4.0, -0.15);
+  // guard / free: gloves up at the chin
+  return new THREE.Vector3(side*0.22, chinY, 0.55);
+}
+
+// ---------- replay state ----------
+let DATA=null, FRAMES=[], DT=0.05, N=0;
+let t=0, playing=true, speed=1.0;
+const flashes=[];   // {mesh, born, dur}
+
+const $ = id => document.getElementById(id);
+
+function load(json) {
+  DATA = json;
+  FRAMES = json.frames; N = FRAMES.length;
+  DT = json.header?.dt ?? 0.05;
+  $('nameR').textContent = FRAMES[0].red.name;
+  $('nameB').textContent = FRAMES[0].blue.name;
+  $('seek').max = N-1;
+  t = 0; playing = true; $('play').textContent='⏸ Pause';
+  for (const el of [ $('hud'), $('ctl'), $('reasonR'), $('reasonB') ]) el.classList.remove('hide');
+  $('drop').classList.add('hidden');
+}
+
+const lerp = (a,b,s)=>a+(b-a)*s;
+
+function applyBoxer(grp, prev, cur, s, opp) {
+  const u = grp.userData;
+  const px = lerp(prev.pos[0], cur.pos[0], s), py = lerp(prev.pos[1], cur.pos[1], s);
+  const p = ringToWorld(px, py);
+  grp.position.set(p.x, 0, p.z);
+
+  // face opponent
+  const face = new THREE.Vector3(opp.pos[0]-px, 0, opp.pos[1]-py);
+  if (face.lengthSq() > 1e-5) grp.rotation.y = Math.atan2(face.x, face.z);
+
+  // defense: duck lowers, slip shifts head
+  const def = cur.defense;
+  let crouch = 0, headShift = 0;
+  if (def === 'duck') crouch = 0.9;
+  else if (def === 'slip_left') headShift = -0.45;
+  else if (def === 'slip_right') headShift = 0.45;
+  grp.position.y = -crouch;
+  u.head.position.x = headShift;
+
+  // lean forward slightly while punching
+  const punching = ['windup','recovery'].includes(cur.left.state) ||
+                   ['windup','recovery'].includes(cur.right.state);
+  u.torso.rotation.x = punching ? -0.18 : 0;
+  u.head.position.z = punching ? 0.25 : 0;
+
+  // arms
+  const hands = [['left', u.armL, -1], ['right', u.armR, +1]];
+  let hit = false;
+  for (const [key, arm, side] of hands) {
+    const h = cur[key];
+    const local = gloveLocal(h.state, h.placement || 'head_center', side);
+    const sh = new THREE.Vector3(side*u.SH_Z, u.SH_Y, 0.05);
+    spanCylinder(arm.arm, sh, local);
+    arm.glove.position.copy(local);
+    // colour the glove if it's a live punch
+    const live = h.state === 'recovery';
+    arm.glove.material.color.set(live ? 0xffe06a : grp===red ? 0xd24646 : 0x4a78dc);
+  }
+}
+
+function spawnFlash(grp, ev) {
+  const toHead = (ev.placement||'').startsWith('head');
+  const blocked = ev.quality === 'blocked';
+  const col = blocked ? 0xaab0b8 : 0xffe04a;
+  const geo = new THREE.RingGeometry(0.1, 0.32, 16);
+  const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color:col,
+    side:THREE.DoubleSide, transparent:true }));
+  // place near the struck boxer's head/body, out in front
+  const fwd = new THREE.Vector3(0, toHead?4.5:3.0, 1.2).applyQuaternion(grp.quaternion);
+  m.position.copy(grp.position).add(fwd);
+  m.lookAt(camera.position);
+  scene.add(m);
+  flashes.push({ mesh:m, born:performance.now(), dur: blocked?350:600,
+                 grow: blocked?1.5:3.0 });
+}
+
+let lastEventFrame = -1;
+function fireEvents(fi, cur) {
+  if (fi === lastEventFrame) return;
+  lastEventFrame = fi;
+  for (const ev of (cur.events||[])) {
+    if (ev.kind !== 'land') continue;
+    // struck boxer is the opponent of ev.by
+    const byRed = ev.by === FRAMES[0].red.name;
+    spawnFlash(byRed ? blue : red, ev);
+  }
+}
+
+function updateFlashes() {
+  const now = performance.now();
+  for (let i=flashes.length-1; i>=0; i--) {
+    const f = flashes[i], age = (now-f.born)/f.dur;
+    if (age >= 1) { scene.remove(f.mesh); f.mesh.geometry.dispose(); flashes.splice(i,1); continue; }
+    const sc = 1 + age*f.grow;
+    f.mesh.scale.set(sc,sc,sc);
+    f.mesh.material.opacity = 1-age;
+    f.mesh.lookAt(camera.position);
+  }
+}
+
+// ---------- HUD ----------
+function updateHUD(cur) {
+  $('clock').textContent = cur.t.toFixed(1)+'s';
+  $('phase').textContent = cur.phase;
+  const set=(id,v)=>$(id).style.width = Math.max(0,Math.min(100,v))+'%';
+  set('hpR',cur.red.health); set('enR',cur.red.energy);
+  set('hpB',cur.blue.health); set('enB',cur.blue.energy);
+  $('hpRt').textContent=cur.red.health.toFixed(0); $('enRt').textContent=cur.red.energy.toFixed(0);
+  $('hpBt').textContent=cur.blue.health.toFixed(0); $('enBt').textContent=cur.blue.energy.toFixed(0);
+
+  const d = cur.decisions || {};
+  const rn = cur.red.name, bn = cur.blue.name;
+  const fmt = (who, dec) => dec ? `<div class="hdr">${who}</div>${dec.reasoning||''}` +
+      `<div class="meta">foot: ${dec.footwork||'—'} · def: ${dec.defense||'—'}</div>` : '';
+  $('reasonR').innerHTML = fmt(rn, d[rn]);
+  $('reasonB').innerHTML = fmt(bn, d[bn]);
+}
+
+// ---------- main loop ----------
+let prevTime = performance.now();
+function animate() {
+  requestAnimationFrame(animate);
+  const now = performance.now(), realDt = (now-prevTime)/1000; prevTime = now;
+
+  if (FRAMES.length) {
+    if (playing) {
+      t += realDt * speed;
+      const end = (N-1)*DT;
+      if (t >= end) { t = end; playing=false; $('play').textContent='▶ Play';
+        const ft = DATA.footer; if (ft) $('result').textContent = ft.result || ''; }
+    }
+    const fpos = t/DT, fi = Math.floor(fpos), s = fpos-fi;
+    const ci = Math.min(fi, N-1), ni = Math.min(fi+1, N-1);
+    const cur = FRAMES[ci], nxt = FRAMES[ni];
+
+    applyBoxer(red,  cur.red,  nxt.red,  s, nxt.blue);
+    applyBoxer(blue, cur.blue, nxt.blue, s, nxt.red);
+    fireEvents(ci, cur);
+    updateHUD(cur);
+
+    $('seek').value = ci;
+    $('tlabel').textContent = `${ci} / ${N-1}`;
+    if (t < (N-1)*DT) $('result').textContent='';
+  }
+  updateFlashes();
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// ---------- controls ----------
+$('play').onclick = () => { if (t>=(N-1)*DT) t=0; playing=!playing;
+  $('play').textContent = playing?'⏸ Pause':'▶ Play'; };
+$('seek').oninput = e => { t = (+e.target.value)*DT; lastEventFrame=-1; };
+$('slow').onclick = () => { speed=Math.max(0.25, speed-0.25); $('spd').textContent=speed.toFixed(2)+'×'; };
+$('fast').onclick = () => { speed=Math.min(4, speed+0.25); $('spd').textContent=speed.toFixed(2)+'×'; };
+$('reset').onclick = () => { t=0; playing=true; lastEventFrame=-1; $('play').textContent='⏸ Pause'; };
+let showReason=true;
+$('toggleR').onclick = () => { showReason=!showReason;
+  $('reasonR').style.visibility = showReason?'visible':'hidden';
+  $('reasonB').style.visibility = showReason?'visible':'hidden'; };
+
+window.addEventListener('keydown', e => {
+  if (e.code==='Space'){ e.preventDefault(); $('play').click(); }
+  else if (e.code==='ArrowRight') t=Math.min((N-1)*DT, t+DT*5);
+  else if (e.code==='ArrowLeft')  t=Math.max(0, t-DT*5);
+});
+
+// ---------- file loading ----------
+function readFile(file) {
+  const r = new FileReader();
+  r.onload = () => { try { load(JSON.parse(r.result)); }
+    catch(err){ alert('Could not parse JSON: '+err.message); } };
+  r.readAsText(file);
+}
+$('file').onchange = e => { if (e.target.files[0]) readFile(e.target.files[0]); };
+const drop = $('drop');
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.add('dragover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); if (ev==='dragleave') drop.classList.remove('dragover'); }));
+drop.addEventListener('drop', e => { const f=e.dataTransfer.files[0]; if (f) readFile(f); });
+// allow drop anywhere once a fight is loaded
+window.addEventListener('dragover', e=>e.preventDefault());
+window.addEventListener('drop', e=>{ e.preventDefault();
+  if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+
+// ---------- resize ----------
+function resize(){ const w=innerWidth,h=innerHeight;
+  camera.aspect=w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h); }
+addEventListener('resize', resize); resize();
+</script>
+</body>
+</html>

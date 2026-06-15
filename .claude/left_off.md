@@ -1,7 +1,44 @@
 # Left Off
 Date: 2026-06-14
 
-## Latest session — ENERGY RE-CENTERED as capacity (not a win condition)
+## Latest session — 3D REPLAY VIEWER (browser / Three.js)
+Goal: the 2D viewer makes it hard to tell what's happening; wants a simple 3D viewer (JS is fine; NOT
+Unity-level — simple human figures, simple arm movement). Past Python **Ursina** attempt was "really bad",
+so Python desktop-3D options (pyvista/Panda3D) were rejected by analogy. Locked via AskUserQuestion:
+**Three.js in the browser + drag-and-drop file loading** (no server, no build step, no assets).
+
+### What got done
+- **`render/viewer_3d.html`** — one self-contained file. Loads Three.js 0.160 from unpkg via importmap
+  (needs internet on first open); reads the SAME replay JSON the 2D viewer uses. No engine changes.
+- Boxers are primitives (sphere head, capsule torso, cylinder legs + two dynamic arms). Each arm is a
+  thin cylinder re-spanned every frame from shoulder→glove + a glove sphere.
+- **Poses mirror engine hand states** (`gloveLocal`): guard/free → gloves at chin, windup → cocked back,
+  recovery → glove snapped out to head/body per `placement`; glove glows yellow on a live punch.
+- **Defense shown**: `duck` crouches the figure, `slip_left/right` shifts the head laterally. Boxers face
+  each other (rotation.y = atan2 toward opponent); lean in while punching.
+- **Impact flash** on `land` events: yellow ring = `clean`, light-gray (reads whitish) ring = `blocked`.
+- HUD (HP/energy bars, clock, phase, end result), per-fighter reasoning panels (toggle), OrbitControls
+  camera (drag to rotate/zoom — the whole point), playback (Space, ←/→ scrub, slider, 0.25–4× speed, ⟲).
+- Position interpolation between frames for smooth motion.
+
+### Verified
+- Field names checked against `replays/fifteen.json` (event `kind`/`by`/`quality`/`placement`, hand
+  states, defense values all match). `node --check` on the embedded module = clean. User confirmed
+  "this looks great" — but NO live-browser eyeball from my side yet (couldn't see a browser).
+- Caught + fixed an axis bug pre-ship: figure faces along local +Z but arms/flash were built on +X →
+  punches would've fired sideways. Converted forward to +Z throughout.
+
+### Bug I introduced & fixed (axis convention)
+`rotation.y = atan2(face.x, face.z)` makes local **+Z** = forward, but `gloveLocal`, the shoulder anchor,
+and the flash offset were all written with **+X** = forward. Fixed all three to +Z.
+
+## NEXT STEP (next session)
+- **Eyeball `render/viewer_3d.html` in a real browser** with `replays/fifteen.json` — confirm punches
+  extend toward the opponent (not sideways), slips/ducks read right, and clean-vs-blocked flashes are
+  distinguishable. Open question raised by user re: yellow (clean) vs whitish-gray (blocked) flash being
+  too subtle — offered to make blocked a distinct color (slate blue) or add a "BLOCK" label; awaiting word.
+
+## PRIOR session — ENERGY RE-CENTERED as capacity (not a win condition)
 User feedback (from watching logs): the LLMs treat "drain his energy" as the GOAL. Wrong. The only goal
 is HEALTH → 0 (KO) + land the most hits. Energy is **capacity**: it gates how hard/fast you punch and how
 well you defend (slip/block/move). Low energy must NOT auto-KO — it just means you can't defend, so the

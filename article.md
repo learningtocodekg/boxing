@@ -250,3 +250,21 @@ head-opens → health-falls chain never fires, and the fight is a low-damage fee
 *requires* actually wearing someone down over a long enough round, instead of a cheap threshold trip.
 The decisiveness lever moved from "trip the energy gate" to "round length × accumulated fatigue", which
 is where it belongs.
+
+## Observations (B3, 3D viewer in a different language entirely)
+
+**A clean replay format let a renderer in a different language drop in with zero engine changes.** The
+sim writes a flat JSON replay (per-tick positions, hand states, placements, defense, events) that the
+pygame 2D viewer already consumes. When "2D is hard to read" came up, adding a *browser* 3D viewer
+(Three.js, JavaScript) was a pure additive renderer — no touch to the engine, the recorder, or the
+Python side at all. The payoff of the recorder/viewer split from B2 wasn't really visible until a viewer
+showed up in a language the engine can't even import. If the renderer had been reading engine objects
+instead of a serialized snapshot, this would have been a port, not a new file.
+
+**Rejecting a bad tool meant rejecting its whole category, not just the library.** A prior Python
+**Ursina** attempt had been "really bad". The reflexive next step is "try a different Python 3D lib"
+(pyvista, Panda3D). But Ursina *is* Panda3D underneath, and the thing that made it bad — a heavyweight
+desktop-3D window with clunky playback — is shared across the Python desktop-3D category, not specific to
+Ursina. The better move was to leave the category: a browser + Three.js gives a free orbit camera,
+hot-reload, drag-and-drop file loading, and no asset pipeline, for a stick-figure-grade scene. Lesson:
+when a tool fails, ask whether the failure is the library or the category before swapping within it.
