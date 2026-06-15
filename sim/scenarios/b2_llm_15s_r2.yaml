@@ -1,0 +1,9 @@
+name: B2 LLM vs LLM R2
+round_seconds: 15
+start_range: 4.0
+seed: 42
+carry_from: replays/fifteen.json   # continue from round 1's end state
+rest_energy: 5                     # +5 energy each for the between-round break
+output: replays/fifteen_r2.json
+red:  {type: llm, name: Red}
+blue: {type: llm, name: Blue}

@@ -1,7 +1,69 @@
 # Left Off
 Date: 2026-06-14
 
-## Latest session — 3D REPLAY VIEWER (browser / Three.js)
+## Latest session — MULTI-ROUND CONTINUATION (round 2 carries round 1's state) + 15s realism analysis
+Goal: read into `replays/fifteen.json`, figure out what makes the game better/more realistic. Then (if R1
+looks good) run a **round 2 that CONTINUES from round 1** — same health, +5 energy each for the rest break.
+Explicit: do NOT touch / regenerate `forty-five.json` this session.
+
+### What I found in round 1 (`replays/fifteen.json`, 15s GPT-5-nano, seed 42)
+- Blue wins by decision (88/78 hp). 43 lands: 17 clean / 26 blocked. No KO.
+- **Jab-fest:** 37/43 lands are jabs; only 5 cross + 1 hook + 0 uppercut land. Power shots ARE thrown
+  (57 hook/cross windups) but almost never connect — their long recovery exposes the thrower and the
+  opponent's guard rarely opens.
+- **Nobody tires:** energy ends ~58–60; regen (1.2/s) fully offsets a 15s round, so NOBODY crosses the
+  sag threshold (45) → the fatigue→sagging-guard→clean-shot→KO chain never fires. This is the core
+  realism gap, and it's exactly what multi-round wear-down fixes.
+
+### What got done — continuation-round mechanic
+1. **`sim/runner.py`** — new `carry_from` + `rest_energy` scenario fields. After making the boxers, if
+   `carry_from` is set, read that replay's LAST frame and seed each fighter's `health`, `energy_ceiling`
+   (the RATCHETED cap — carried, NOT lifted = accumulated fatigue), and `energy = min(ceiling, prev+rest)`.
+   Minimal: ~10 lines + `import json`. No other engine change.
+2. **`sim/scenarios/b2_llm_15s_r2.yaml`** — round 2: `carry_from: replays/fifteen.json`, `rest_energy: 5`,
+   `output: replays/fifteen_r2.json`, seed 42.
+
+### Verified — round 2 VALIDATES the realism hypothesis
+- Carry seeds correctly (mock dry-run: R2 starts Red 78.2hp/~65en, Blue 88.0hp/~60en, ceiling 75).
+- All unit tests (`test_energy`, `test_damage`, `test_e2e`) PASS after the runner change.
+- **`replays/fifteen_r2.json` (Red wins by decision):** both fighters START worn and CROSS the sag
+  threshold mid-round (Blue <45 by t6, Red by t8). Result vs R1:
+
+  | metric            | R1 | R2 |
+  |-------------------|----|----|
+  | clean lands       | 17 | **35** |
+  | blocked lands     | 26 | **16** |
+  | health dmg to Blue| 21.8 | **36.0** |
+  | both cross sag(45)| never | **yes** |
+  | avoids (defense)  | 6  | **0** |
+  | result            | Blue dec | Red dec |
+
+  Cumulative: Blue 100→88→52, Red 100→78→64. A round 3 would very likely KO Blue (52hp/18en, deep sag).
+  Defense COLLAPSES when tired (0 slips landed in R2) — the intended `reaction_penalty_at_empty` (0.25)
+  degradation, and it reads realistic.
+
+### Broken / Open
+1. **Still jab-dominant — power shots don't pay off.** R2's clean jump (17→35) came from JABS leaking the
+   sagging guard (32 jab / 3 cross / 0 hook clean), NOT from power punches. The jab already cracks a tired
+   guard cheaply, so there's no incentive to risk a slow, exposing power shot. The "load the power shot
+   when he sags" doctrine in the prompt isn't being acted on. THIS is the next realism lever.
+2. **Continuation is a manual 2-scenario setup, not a feature.** You run R1, then run R2 pointing at R1's
+   replay. No round loop, no auto-stop-on-KO, no aggregate scorecard, no viewer round-break. That's the
+   roadmap B4 ("multi-round matches, between-round rest, ratchet caps lift") — `rest_energy`+ceiling-carry
+   is the seed of it.
+3. **3D viewer still not eyeballed live** by me (carried over from prior session); blocked-flash color
+   question still open.
+
+## NEXT STEP (next session)
+**Make power shots pay off so the fight isn't a jab-fest** (open #1). Options: (a) prompt nudge — once the
+opponent reads "sagging", explicitly switch to a power shot to the head; (b) mechanic — a sagging guard
+should leak POWER shots far more than jabs (scale the sag block-leak by punch power), so the risk of the
+slow shot is rewarded. Pick one, re-run the 15s (R1 then R2), confirm hooks/uppercuts/crosses start
+landing clean on a tired guard. Keep using R1→R2 continuation as the realism test; do NOT use the 45s.
+
+---
+
+## PRIOR session — 3D REPLAY VIEWER (browser / Three.js)
 Goal: the 2D viewer makes it hard to tell what's happening; wants a simple 3D viewer (JS is fine; NOT
 Unity-level — simple human figures, simple arm movement). Past Python **Ursina** attempt was "really bad",
 so Python desktop-3D options (pyvista/Panda3D) were rejected by analogy. Locked via AskUserQuestion:

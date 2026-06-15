@@ -268,3 +268,30 @@ desktop-3D window with clunky playback — is shared across the Python desktop-3
 Ursina. The better move was to leave the category: a browser + Three.js gives a free orbit camera,
 hot-reload, drag-and-drop file loading, and no asset pipeline, for a stick-figure-grade scene. Lesson:
 when a tool fails, ask whether the failure is the library or the category before swapping within it.
+
+## Observations (B3, a fully-built balance mechanic that was dead on arrival)
+
+**A mechanic can be correct, unit-tested, and still never fire — because the operating regime never
+reaches its trigger.** The whole wear-down model (fatigue → guard sags below 45 energy → block leaks →
+clean shots → health KO) was built and passing tests. But reading a 15-second fight's replay showed it
+was *inert*: energy regen (1.2/s) fully offsets a 15s round, so neither fighter ever drops below the sag
+threshold — 37 of 43 landed punches were jabs, 17 clean / 26 blocked, no finish, ever. The bug wasn't in
+the mechanic; it was that a single short round never enters the regime where the mechanic does anything.
+The fix was therefore *not* to retune the fatigue numbers but to change the regime: run a **second round
+that carries the first round's health and the ratcheted energy ceiling, with only a +5 rest bump**. Same
+fighters, same prompt, same everything — except now they start worn. Round 2 immediately validated the
+model: both fighters crossed the sag threshold mid-round, clean shots doubled (17→35), blocks halved,
+the loser ate 36 health (vs 21.8 in round 1), and defense collapsed (slips landed 6→0, the intended
+"too tired to react" degradation). The lesson: before tuning a mechanic that "isn't doing anything,"
+check whether the scenario ever satisfies its precondition — the answer changes whether you touch the
+formula or the harness around it. Carrying the *ratcheted ceiling* (not lifting it) is what makes fatigue
+accumulate across rounds, which is the realistic path to a knockout that no single short round can produce.
+
+**Opening the head doesn't get power shots thrown — it gets more jabs thrown.** Even once guards sagged
+and clean shots doubled, the models still won with jabs: of 35 clean lands in round 2, 32 were jabs, 3
+crosses, and zero hooks/uppercuts. The reasoning is rational — a cheap, fast jab already cracks a tired
+guard, so why risk a slow power shot with a long, exposing recovery for the same opening? An observation
+that *advertises* an opening ("he's sagging") plus a prompt that *says* "load the power shot" is not
+enough; the model won't pay the power shot's cost unless the opening rewards power specifically (e.g. a
+sagging guard should leak hooks far more than jabs). Telling the model an opening exists and rewarding it
+for exploiting that opening with the expensive tool are two different things.

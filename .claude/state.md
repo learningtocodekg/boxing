@@ -69,11 +69,26 @@ errors, strategic reasoning, slips now land and decide fights).
 - Verified: fields match `replays/fifteen.json`; `node --check` clean; user said "looks great". NOT yet
   eyeballed live in a browser by me. Open: make blocked flash a more distinct color / add BLOCK label?
 
-## NEXT: eyeball viewer_3d.html in a browser (see left_off.md); then regenerate forty-five.json + commit
-- **Regenerate `replays/forty-five.json`** under the new model — it's still a pre-recenter run (old gassed
-  KO). Confirm a 45s fight still FINISHES (now a health-KO after fatigue degrades defense). 15s = everyday
-  test, 45s = occasional (token cost).
-- **Open: slips landing improved (0→6)** but verify timing reads right on screen.
+## DONE latest: MULTI-ROUND CONTINUATION — round 2 carries round 1's end state
+- `sim/runner.py`: scenario fields `carry_from` (a replay path) + `rest_energy`. Seeds each boxer from
+  that replay's LAST frame: `health`, `energy_ceiling` (ratcheted cap CARRIED, not lifted = accumulated
+  fatigue), `energy = min(ceiling, prev_energy + rest_energy)`. `sim/scenarios/b2_llm_15s_r2.yaml` =
+  round 2 off `replays/fifteen.json`, +5 rest, → `replays/fifteen_r2.json`.
+- Validated the realism model: R1 nobody tires (energy ~58, sag-threshold 45 never crossed → jab-fest,
+  17 clean / 26 blocked, no finish). R2 starts worn, BOTH cross sag mid-round → 35 clean / 16 blocked,
+  Blue eats 36 hp (vs 21.8 in R1), defense collapses (0 slips land). Cumulative Blue 100→88→52,
+  Red 100→78→64; a round 3 would likely KO Blue. All unit tests PASS.
+- REALISM ANALYSIS of fifteen.json drove this: the single biggest gap was "nobody gasses in 15s so the
+  whole fatigue→sag→clean-shot→KO chain is dead." Multi-round continuation makes it fire.
+
+## NEXT: make power shots pay off (open #1) — fight is still a jab-fest
+- R2's clean-shot jump came from JABS leaking the sagging guard (32 jab / 3 cross / 0 hook clean), not
+  power punches. No incentive to risk a slow exposing power shot when the jab already cracks a tired guard.
+  Fix: prompt nudge (switch to power-to-head once he reads "sagging") OR scale the sag block-leak by punch
+  power so a tired guard leaks hooks/uppercuts far more than jabs. Re-run R1→R2 to confirm power lands.
+- DEFERRED (not this session, per user): regenerate `replays/forty-five.json`; eyeball viewer_3d.html live.
+- Continuation is still a manual 2-scenario setup — promote to a real round loop (auto-stop on KO,
+  scorecard, between-round ceiling lift) = roadmap B4.
 
 ## What exists
 - `PRD.md` — full design (long). Source of truth for mechanics.

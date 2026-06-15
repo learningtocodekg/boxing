@@ -3,6 +3,7 @@ first punch, then LIVE event-driven decision steps with the reaction-delay model
 the seed (the only RNG is the contest roll).
 """
 from pathlib import Path
+import json
 import yaml
 
 from engine.config import CONFIG
@@ -221,6 +222,18 @@ def run_fight(scenario_path: str | None = None, seed: int | None = None, output:
     half = sc["start_range"] / 2.0
     red = make_boxer(sc["red"]["name"], [ring.SIZE / 2, ring.SIZE / 2 - half], attrs)
     blue = make_boxer(sc["blue"]["name"], [ring.SIZE / 2, ring.SIZE / 2 + half], attrs)
+
+    # Continuation round: carry health + energy (+ ratcheted ceiling = accumulated fatigue) from a
+    # previous round's last frame, with a small rest-break energy bump. The ceiling is NOT lifted, so
+    # each round the fighters cap lower — the realistic wear-down a single round can't produce.
+    if sc.get("carry_from"):
+        prev = json.loads(Path(sc["carry_from"]).read_text(encoding="utf-8"))["frames"][-1]
+        rest = sc.get("rest_energy", 0)
+        for b, side in ((red, "red"), (blue, "blue")):
+            s = prev[side]
+            b.health = s["health"]
+            b.energy_ceiling = s["energy_ceiling"]
+            b.energy = min(b.energy_ceiling, s["energy"] + rest)
     agents = {red.name: _make_agent(sc["red"], local, model),
               blue.name: _make_agent(sc["blue"], local, model)}
 
