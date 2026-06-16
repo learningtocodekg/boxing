@@ -368,3 +368,37 @@ ratchets down has no meaning in band-space. So the knowledge went in qualitative
 back a good chunk of your wind and a little of your health" — which conveys both the asymmetry (more
 energy than health) and the strategic point (don't hoard at the bell) without breaking the abstraction.
 The user's numbers belong in the *mechanic* (the runner's carry math), not the *prompt*.
+
+## Observations (B3, fighter asymmetry — the draw breaks but the model won't box)
+
+**Half the "roster" was config theater.** The boxers had `power`, `foot_speed`, `stamina` attributes,
+assigned per fighter, sitting in `config.yaml` looking like tunable knobs. None were read by any engine
+code — `power` never touched damage, `foot_speed` never touched movement, `stamina` never touched regen.
+`chin` was wired but baseline-gated to a no-op. A stat that exists in config but isn't consumed isn't a
+feature, it's a comment that looks like one — and it's invisible precisely because nothing breaks. The
+asymmetry work was less "add new stats" and more "make the stats we already pretended to have actually do
+something," with every effect designed to be a no-op at the 75 baseline so symmetric fights stayed
+byte-identical and the whole existing test suite stayed green.
+
+**Distinct fighters finally broke the symmetry-draw ceiling — but the LLM still wouldn't fight to its
+type.** For many sessions, identical boxers on a fixed seed wore down in lockstep and every fight ended a
+draw at the energy floor; the diagnosis was "a KO needs asymmetry, not more tuning." Asymmetry delivered:
+a tall/rangy/quick out-boxer vs a short/heavy/granite pressure fighter produced a decisive 86.6–63.1
+result with one man gassed. The surprise was *which* man. The rangy boxer — whose entire mechanical edge
+is that at distance he lands and the other man literally cannot reach him — spent **1150 of 1201 frames in
+the pocket**, threw 48 jabs and one power shot, and gassed out, despite a matchup card in his prompt that
+said in plain words "you're longer, plant at that range, the moment he closes step out and reset." A
+coherent strategic brief did not survive contact with the moment-to-moment pull toward the nearest visible
+target. The lesson: telling an LLM its optimal style is not the same as getting it to execute that style
+turn by turn — the local "there's an opening, hit it" reflex overrides the global plan, the same way the
+"conserve energy" reflex earlier overrode "load the power shot." Imposing a style may need mechanical
+scaffolding (a minimum range, a start-at-distance), not just better prose.
+
+**A "you're the weaker puncher" framing made the model stop punching.** Told it hit lighter and should
+"outbox, stay cheap, don't trade," the low-power fighter pawed 48 jabs and threw exactly one real shot —
+doing almost no damage and gassing anyway from sheer volume of nothing. The model read "you're weaker" as
+"don't throw power," which is the opposite of boxing: a lighter hitter still throws crosses and hooks, he
+just doesn't stand and swap bombs. A disadvantage has to be framed as *what to do instead* (throw real
+combinations, then slide off) — not only *what to avoid* — because the model over-applies pure avoidance
+into passivity. Same failure shape as an over-tuned "conserve" doctrine: a negative instruction with no
+positive target collapses to doing nothing.

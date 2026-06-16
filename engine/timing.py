@@ -21,10 +21,18 @@ def windup_time(punch_type: str, speed: float, hand_speed: float = _ATTR_BASELIN
     return scaled * (_ATTR_BASELINE / max(1.0, hand_speed))
 
 
-def recovery_time(punch_type: str, strength: float) -> float:
-    """How long the hand is locked (no guard) after impact. Grows with strength."""
+def recovery_time(punch_type: str, strength: float, speed: float) -> float:
+    """How long the hand is locked (no guard) after impact, before it's back in guard.
+
+    GROWS with strength — a hard shot commits the body forward (momentum shifted out), so the hand
+    is slow to come back. TRIMMED by speed — a snappy hand retracts quicker. Strength dominates
+    (up to +`strength_recovery_scale`), speed only shaves a little (down to `speed_recovery_scale`),
+    so a light fast jab snaps back while a power shot leaves you exposed.
+    """
     base = _T["recovery"][punch_type]
-    return base * _lerp(1.0, _T["strength_recovery_scale"], strength / 10.0)
+    return (base
+            * _lerp(1.0, _T["strength_recovery_scale"], strength / 10.0)
+            * _lerp(1.0, _T["speed_recovery_scale"], speed / 10.0))
 
 
 def reaction_delay(reaction_attr: float = _ATTR_BASELINE, energy_penalty: float = 0.0) -> float:

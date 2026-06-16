@@ -34,12 +34,19 @@ def block_multiplier(placement: str, defender_energy: float, punch_type: str = "
     return min(1.0, base + (_H["block_factor_sagging"] - base) * frac * power)
 
 
+def power_mult(attacker_power: float) -> float:
+    """A stronger boxer's same 0-10 punch lands a bit harder (no-op at the 75 baseline)."""
+    return 1.0 + (attacker_power - _CHIN_BASELINE) / _CHIN_BASELINE * _H["power_scale"]
+
+
 def raw_damage(punch_type: str, placement: str, strength: float,
                attacker_energy: float, land_quality: float,
-               blocked: bool, contest_roll: float, defender_energy: float = 100.0) -> float:
+               blocked: bool, contest_roll: float, defender_energy: float = 100.0,
+               attacker_power: float = _CHIN_BASELINE) -> float:
     """The undivided punch potency before the health/energy split (PRD §9.2).
     land_quality: 1.0 clean, config glancing_mult at the edge of reach. contest_roll: seeded ~[0.9,1.1].
-    defender_energy gates how much a HEAD guard sags (tired guards block worse)."""
+    defender_energy gates how much a HEAD guard sags (tired guards block worse). attacker_power scales
+    the punch's potency by the attacker's strength attribute."""
     base = strength_value(punch_type, strength) * _H["damage_per_strength"]
     block_mult = block_multiplier(placement, defender_energy, punch_type) if blocked else 1.0
     return (base
@@ -48,6 +55,7 @@ def raw_damage(punch_type: str, placement: str, strength: float,
             * land_quality
             * output_factor(attacker_energy)
             * block_mult
+            * power_mult(attacker_power)
             * contest_roll)
 
 

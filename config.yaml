@@ -2,7 +2,7 @@
 # First-pass values (delegated by user); tune against B2 fights. See PRD.md §13.
 
 observation:
-  vitals_display: bands          # "bands" (deterministic word read) | "exact" (raw numbers, A/B only)
+  vitals_display: exact          # "exact" (raw health/energy out of 100) | "bands" (deterministic word read)
   guard_sags_below_energy: 45    # below this, a gassed fighter's high guard sags -> his HEAD lines read
                                  # "sagging" (openable) instead of GUARDED. The head opens via fatigue,
                                  # not for free. (Phrase only; the threshold is never shown to the LLM.)
@@ -30,6 +30,9 @@ observation:
 ring:
   size_ft: 16.0
   corner_margin_ft: 2.0          # within this of a wall = cornered for that direction
+  min_distance_ft: 1.6           # closest the two boxers' centers may get (radius 0.7 each) — a step that
+                                 # would put them inside each other is clamped to this. Below pocket (2.2)
+                                 # and the shortest punch reach, so pocket fighting still works.
 
 time:
   dt: 0.05                       # physics tick (s)
@@ -52,6 +55,8 @@ energy:
   duck_energy: 0.5
   guard_energy_per_sec: 0.2
   regen_per_sec: 1.2             # only while not throwing (idle/guard/circle)
+  stamina_regen_scale: 0.6       # regen rate *= 1 + (stamina-75)/75 * this: a deeper gas tank recovers
+                                 # faster between exchanges and sags later (no-op at the 75 baseline)
   ratchet_caps: [75, 50, 25]     # once below a cap, can never exceed it again this round
   zero_energy_next_hit_is_ko: false  # energy is CAPACITY, not a win condition. You do NOT win by emptying
                                  # his tank — a gassed man doesn't fall over, he just can't defend (guard
@@ -97,6 +102,8 @@ health:
   glancing_mult: 0.6
   contest_roll: [0.9, 1.1]
   zero_health_is_ko: true
+  power_scale: 0.5               # damage *= 1 + (attacker_power-75)/75 * this: a stronger boxer's same
+                                 # 0-10 punch lands a bit harder (no-op at the 75 baseline)
 
 reach:                            # feet, by punch type
   jab: 3.2
@@ -104,9 +111,17 @@ reach:                            # feet, by punch type
   hook: 2.0
   uppercut: 1.8
   pocket_ft: 2.2
+  attr_scale_ft: 1.5             # reach ATTR swing: effective reach += (reach-75)/75 * this (ft).
+                                 # A longer-armed boxer lands from outside a shorter one's range.
+  height_head_ft: 1.0           # head-shot reach += (own_height-opp_height)/75 * this: a taller boxer
+                                 # tags a shorter man's (lower) head from farther; a short man must get
+                                 # inside to reach a tall man's head.
+  height_body_ft: 1.0           # body-shot reach += (opp_height-own_height)/75 * this: the SHORTER boxer
+                                 # reaches the taller man's body more easily (it's right in front of him).
 
 footwork:
   step_distance_ft: 1.0
+  agility_scale: 0.5            # step distance *= 1 + (agility-75)/75 * this (quicker feet cover more ground)
 
 timing:                           # phase durations (s); scaled by speed/strength/hand_speed
   # Lengthened so a human can SEE each punch: longer recovery keeps the glove extended on screen and
@@ -123,13 +138,40 @@ timing:                           # phase durations (s); scaled by speed/strengt
   duck_duration: 0.44
   duck_recovery: 0.30
   speed_windup_scale: 0.6        # windup *= lerp(1.0 .. this) as speed 0->10
-  strength_recovery_scale: 1.4   # recovery *= lerp(1.0 .. this) as strength 0->10
+  strength_recovery_scale: 1.4   # recovery *= lerp(1.0 .. this) as strength 0->10 (committed = slow reset)
+  speed_recovery_scale: 0.85     # recovery *= lerp(1.0 .. this) as speed 0->10 (snappy hand resets quicker;
+                                 # strength dominates, so a jab snaps back while a power shot stays exposed)
 
+# Boxer attributes (0-150, baseline 75 = neutral; every effect is a NO-OP at 75 so two 75-across boxers
+# fight identically). Each stat now has a distinct mechanical effect:
+#   reach   - effective reach distance (reach.attr_scale_ft): land from outside his range, or get outreached.
+#   height  - head/body reach geometry (reach.height_*): tall boxer tags a short head from range; short
+#             boxer reaches a tall body easily and must get inside for the head.
+#   power   - damage dealt (damage.power_scale): a given 0-10 punch strength lands harder.
+#   agility - speed of ALL actions: shorter windups, quicker reactions (slip/dodge in time), bigger steps.
+#   chin    - head-damage resistance (already wired in damage.split).
+#   stamina - energy recovery rate between exchanges (energy.regen stamina mult).
 roster_default:
+  reach: 75
+  height: 75
   power: 75
-  hand_speed: 75
-  foot_speed: 75
-  reaction: 75
+  agility: 75
   chin: 75
   stamina: 75
-  reach: 75
+
+# Two mismatched archetypes for the LLM-vs-LLM fight (scenario picks via red.roster / blue.roster).
+rosters:
+  out_boxer:                     # tall, rangy, quick stick-and-move boxer — wins at distance, fragile up close
+    reach: 90
+    height: 90
+    power: 60
+    agility: 84
+    chin: 68
+    stamina: 84
+  pressure:                      # shorter, heavy-handed, granite-chinned pressure fighter — must get inside
+    reach: 60
+    height: 62
+    power: 92
+    agility: 66
+    chin: 90
+    stamina: 70

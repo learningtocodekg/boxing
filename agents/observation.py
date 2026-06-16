@@ -38,11 +38,12 @@ def _max_affordable_strength(energy: float) -> int:
     return 0
 
 
-def _hand_legal(hand: B.Hand, types_in_range: list[str], max_strength: int):
+def _hand_legal(hand: B.Hand, other: B.Hand, types_in_range: list[str], max_strength: int):
     if hand.locked():
         return "LOCKED"
     opts = ["guard", "free"]
-    if types_in_range and max_strength >= 1:
+    # Only one hand throws at a time — no punch offered while the other hand is mid-punch/recovering.
+    if types_in_range and max_strength >= 1 and not other.busy():
         opts.append("punch")
     return opts
 
@@ -83,6 +84,36 @@ def _openings(opp: B.BoxerState) -> dict:
     return out
 
 
+# Per-stat matchup read: (advantage phrase, disadvantage phrase). Only shown when the gap is notable,
+# so each boxer is told its real edges and holes and can fight to type.
+_MATCHUP_MIN_GAP = 8
+_MATCHUP = {
+    "reach": ("REACH: you're longer — at the end of your jab/cross you hit him and he CANNOT reach back. Plant at that range; the moment he closes, pivot or step out and reset it. Brawling in tight throws this edge away.",
+              "REACH: he's longer — out at distance he hits you for free and you land nothing. Don't sit there eating shots: close the gap behind a punch and get into the pocket where you're dangerous."),
+    "height": ("HEIGHT: you're taller — his head is low and easy to reach; punch down and keep him at the end of your range. Mind your body, he'll dig underneath.",
+               "HEIGHT: he's taller — his head is hard to reach from outside, but his BODY is right in front of you. Get inside, rip the body to drag his guard down, THEN go up top."),
+    "power": ("POWER: your hands are heavier — every clean shot costs him more than his cost you. Don't paw; string real combinations and make him pay when he opens up.",
+              "POWER: he punches harder — you lose a bomb-for-bomb trade. But lighter does NOT mean pawing jabs all night: throw real shots — cross, hook, uppercut — to actually take his health. Just put them in combinations and slide off, don't plant and swap power in the pocket."),
+    "agility": ("SPEED: you're quicker — beat him to the punch, hit and slide off, and you can slip him clean. Make it a speed fight.",
+                "SPEED: he's quicker — you'll lose a slip-and-dart race. Cut the ring off, make it physical, and time one big shot instead of racing his hands."),
+    "chin": ("CHIN: you take a shot — you can afford to walk through one to land yours. Use it.",
+             "CHIN: your chin is suspect — one clean power shot can flip this. Do NOT get caught clean upstairs; defend the head first."),
+    "stamina": ("GAS: you last longer — push the pace late, he fades first.",
+                "GAS: you tire sooner — pick your spots, don't empty the tank in early firefights you'll fade in."),
+}
+
+
+def _matchup(self_b: B.BoxerState, opp: B.BoxerState) -> list[str]:
+    out = []
+    for stat, (adv, dis) in _MATCHUP.items():
+        diff = self_b.attrs.get(stat, 75) - opp.attrs.get(stat, 75)
+        if diff >= _MATCHUP_MIN_GAP:
+            out.append(adv)
+        elif diff <= -_MATCHUP_MIN_GAP:
+            out.append(dis)
+    return out
+
+
 def _hand_status(hand: B.Hand, t: float) -> str:
     if hand.state == B.WINDUP:
         return f"winding up a {hand.punch_type}"
@@ -98,12 +129,13 @@ def build_context(self_b: B.BoxerState, opp: B.BoxerState, t: float, round_secon
     dist = ring.distance(self_b.pos, opp.pos)
     tir = ring.types_in_range(dist, self_b.attrs.get("reach", 75))
     max_s = _max_affordable_strength(self_b.energy)
-    legal_steps = ring.legal_steps(self_b.pos, opp.pos, CONFIG["footwork"]["step_distance_ft"])
+    legal_steps = ring.legal_steps(self_b.pos, opp.pos, ring.step_distance(self_b.attrs.get("agility", 75)))
     can_defend = not self_b.in_defense()
 
     return {
         "t": t,
         "round_time_left": max(0.0, round_seconds - t),
+        "matchup": _matchup(self_b, opp),
         "self": {
             "name": self_b.name,
             "health": self_b.health, "energy": self_b.energy,         # raw - engine/mock only
@@ -116,6 +148,7 @@ def build_context(self_b: B.BoxerState, opp: B.BoxerState, t: float, round_secon
         },
         "opponent": {
             "name": opp.name,
+            "health": opp.health, "energy": opp.energy,               # raw - shown when vitals_display=exact
             "health_band": health_band(opp.health),
             "energy_band": energy_band(opp.energy),
             "openings": _openings(opp),
@@ -124,8 +157,8 @@ def build_context(self_b: B.BoxerState, opp: B.BoxerState, t: float, round_secon
         "range": {"dist": dist, "band": ring.range_band(dist)},
         "incoming": incoming,   # {punch_type, placement, can_react: "slip/block only" | "slip or counter"} or None
         "legal": {
-            "left_hand": _hand_legal(self_b.left, tir, max_s),
-            "right_hand": _hand_legal(self_b.right, tir, max_s),
+            "left_hand": _hand_legal(self_b.left, self_b.right, tir, max_s),
+            "right_hand": _hand_legal(self_b.right, self_b.left, tir, max_s),
             "footwork": legal_steps,
             "defense": ["slip_left", "slip_right", "duck"] if can_defend else [],
             "types_in_range": tir,
@@ -142,6 +175,13 @@ _RANGE_LINE = {
 }
 
 
+def _vitals(d: dict) -> str:
+    """Health/energy line. Raw numbers (out of 100) when vitals_display=exact, else the band phrase."""
+    if CONFIG["observation"]["vitals_display"] == "exact":
+        return f"health {d['health']:.0f}/100, energy {d['energy']:.0f}/100"
+    return f"{d['health_band']}; {d['energy_band']}"
+
+
 def render_observation(ctx: dict) -> str:
     s, o, lg = ctx["self"], ctx["opponent"], ctx["legal"]
     L = []
@@ -149,7 +189,7 @@ def render_observation(ctx: dict) -> str:
 
     L.append(f"YOU ({s['name']}):")
     ratchet = " You've spent past your reserves - you won't fully get this energy back this round." if s["ratcheted"] else ""
-    L.append(f"  Condition: {s['health_band']}; {s['energy_band']}.{ratchet}")
+    L.append(f"  Condition: {_vitals(s)}.{ratchet}")
     L.append(f"  Left hand:  {s['left_status']}.")
     L.append(f"  Right hand: {s['right_status']}.")
     if s["cornered"]:
@@ -157,7 +197,7 @@ def render_observation(ctx: dict) -> str:
     L.append("")
 
     L.append(f"OPPONENT ({o['name']}):")
-    L.append(f"  Condition: {o['health_band']}; {o['energy_band']}.")
+    L.append(f"  Condition: {_vitals(o)}.")
     if ctx["incoming"]:
         inc = ctx["incoming"]
         L.append(f"  JUST DID: threw a {inc['punch_type']} at your {inc['placement']}. {inc['can_react']}")
@@ -169,6 +209,12 @@ def render_observation(ctx: dict) -> str:
 
     L.append(f"RANGE: {_RANGE_LINE[ctx['range']['band']]}")
     L.append("")
+
+    if ctx.get("matchup"):
+        L.append("YOUR EDGE IN THIS MATCHUP (fight to your strengths, hide your weaknesses):")
+        for line in ctx["matchup"]:
+            L.append(f"  - {line}")
+        L.append("")
 
     L.append("YOUR LEGAL MOVES THIS STEP:")
     for hand_key, label in (("left_hand", "LEFT HAND"), ("right_hand", "RIGHT HAND")):

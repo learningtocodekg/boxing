@@ -1,0 +1,7 @@
+name: B2 LLM vs LLM
+round_seconds: 60
+start_range: 4.0
+seed: 42
+output: replays/sixty.json     # always overwrite the single 60s replay (round 1)
+red:  {type: llm, name: Red,  roster: out_boxer}   # tall, rangy, quick — boxes at distance
+blue: {type: llm, name: Blue, roster: pressure}    # short, heavy-handed, granite chin — must get inside

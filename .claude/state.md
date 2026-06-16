@@ -116,13 +116,46 @@ errors, strategic reasoning, slips now land and decide fights).
 - OPEN: regen_per_sec (1.2/s) unchanged — over a 60s round at half-pace, within-round fatigue may be too
   light (watch in first real run). Filenames now stale (15s files run 60s).
 
-## NEXT: run the real 60s R1→R2→R3 + watch within-round fatigue (open: regen vs longer round)
-- Run the 60s continuation on GPT-5-nano; confirm pace, the +10/+5 carry, and whether nobody tires over
-  60s (if so, tune `regen_per_sec`). THEN return to ASYMMETRY for an actual KO (identical fighters never
-  diverge → Draw; distinct stamina/chin/style so one sags first).
-- DEFERRED (per user): regenerate `replays/forty-five.json`; eyeball viewer_3d.html live (R2/R3 unwatched).
-- Continuation is still a manual 3-scenario chain — promote to a real round loop (auto-stop on KO,
-  scorecard, between-round ceiling lift) = roadmap B4.
+## DONE latest: first real 60s round + ONE-HAND-AT-A-TIME + STRENGTH/SPEED REWORK
+- Ran the first real 60s symmetric round (`replays/sixty.json`, renamed from `fifteen*`; all scenarios →
+  `b2_llm_60s*.yaml` / `sixty*.json`). CONFIRMED within-round fatigue works over 60s (energy 99→~24, both
+  cross sag(45) at t≈45, damage accelerates back-half) — the regen-vs-longer-round fear is dead.
+- **One hand punches at a time:** `_apply` started both hands + the menu offered a 2nd punch while one was
+  busy. Fixed in `runner._apply` (punch only if the other hand isn't `busy()` & none thrown this step) +
+  `observation._hand_legal` (no "punch" while other busy) + prompt. 0 simultaneous windups in a live fight.
+- **Strength/speed:** `eff_speed = max(speed, strength)` (strong can't be slow; jab unaffected) feeds
+  windup + energy. `timing.recovery_time(pt, strength, speed)` grows w/ strength (dominant), trims w/ speed
+  → jab 0.74s, cross 1.29s, hook 1.67s. config `timing.speed_recovery_scale`. `tests/test_timing.py`.
+
+## DONE latest: FIGHTER ASYMMETRY — every attr now has a mechanic; lockstep-draw BROKEN
+- Audited: `power`/`foot_speed`/`stamina` were DEAD, no `height`, `chin` gated off. Wired all, **no-op at
+  the 75 baseline** (symmetric fights/tests byte-identical): reach→effective distance; height→head/body
+  reach geometry (`ring.land_quality` now takes placement+both heights); power→damage (`damage.power_mult`);
+  agility→windup+reaction+step (replaces reaction/hand_speed/foot_speed); chin→head-dmg resist;
+  stamina→regen (`energy.stamina_regen_mult`). New config: `reach.attr_scale_ft/height_head_ft/height_body_ft`,
+  `footwork.agility_scale`, `health.power_scale`, `energy.stamina_regen_scale`.
+- Two archetypes `config.rosters` (out_boxer rangy/quick/fragile vs pressure short/heavy/granite). Scenario
+  `red.roster`/`blue.roster`; `runner._roster()` merges default←archetype←inline attrs. `tests/test_roster.py`.
+- LLM AWARENESS: `observation._matchup()` → "YOUR EDGE IN THIS MATCHUP" block + shared-prompt paragraph.
+- RAN mismatched 60s: Blue(pressure) bt Red(out-boxer) **86.6/63.1**, Red gassed — lockstep broken. But
+  fight was in the pocket 1150/1201 frames; Red wasted his reach (48 jabs/1 hook), Blue used power. Gap is
+  now TACTICAL (the LLM doesn't fight to type), not mechanical.
+
+## DONE latest: 4 follow-ups (DONE, NOT yet run — next agent analyzes)
+1. **Min distance** `ring.min_distance_ft: 1.6` + `ring.clamp_min_distance` (after every step) — no overlap.
+2. **Raw vitals** `vitals_display: bands→exact`; `observation._vitals()` shows `health/energy NN/100` for
+   both. Deliberately overrides the locked "never show numbers" principle — user experiment, reversible.
+3. **Firmer matchup prompts** (`_MATCHUP` + prompt paragraph): how to exploit + WHY, "not an order, the read".
+4. **Power-disadvantage reframed**: lighter fighter pawed 48 jabs; now told jab=setup not score, throw real
+   combinations (`_MATCHUP` power line + jab doctrine items).
+
+## NEXT: run mismatched 60s + analyze the 4 changes (does the LLM finally fight to type?)
+- `python main.py --scenario sim/scenarios/b2_llm_60s.yaml`. Watch: min-distance holding/looks better;
+  out-boxer USING range (fewer pocket frames than 1150/1201, steps out when pressured); lighter fighter
+  throwing REAL shots (crosses/hooks up from 1, jabs down from 48); raw vitals changing reasoning. THEN the
+  no-KO finish-nudge (ahead fighter won't commit to finish a gassed opponent).
+- DEFERRED: regenerate `replays/forty-five.json` (pre-asymmetry baseline); eyeball viewer_3d.html live;
+  continuation→real round loop (auto-KO-stop, scorecard, ceiling lift) = roadmap B4.
 
 ## What exists
 - `PRD.md` — full design (long). Source of truth for mechanics.
@@ -157,7 +190,9 @@ errors, strategic reasoning, slips now land and decide fights).
   **Vitals (health + energy) shown via DETERMINISTIC number->phrase bands** for BOTH fighters
   (config `vitals_display: bands|exact`, `energy_bands`/`health_bands` tables). The **system prompt
   NEVER reveals the thresholds or that a phrase maps to a number** — LLM just gets the words and must
-  be smart. Raw numbers never appear in the observation. Timing reads are qualitative the same way
+  be smart. (UPDATE: `vitals_display` flipped to `exact` this session — health/energy now shown as raw
+  NN/100 for both fighters, a user experiment that overrides this "bands only" rule; reversible via config.)
+  Timing reads are qualitative the same way
   ("time to slip but not counter", not "0.24s"). Incoming punch power read from its windup telegraph.
 - **Energy cost = strength & speed ONLY** (punch type does NOT affect energy — dropped the type mult,
   so "max strength you can afford" is one number for all punches). Punch type still drives damage.
@@ -165,7 +200,9 @@ errors, strategic reasoning, slips now land and decide fights).
   never shown. Combinatorics handled by slot-composition (fill hand/footwork/defense slots + write
   strength/speed integers) — we never enumerate the move product. See `step_example.md`.
 - **Determinism:** seeded RNG; only randomness is the contest_roll margin + opening tie-breaks.
-- **Boxers identical (v1)**, all stats 75. **3D ursina only** — rectangle torso + circle head + arms;
+- **Boxers identical (v1) — SUPERSEDED:** now distinct archetypes (`config.rosters`), every attr has a
+  no-op-at-75 mechanic (reach/height/power/agility/chin/stamina). All-75 is still the symmetric baseline.
+- **3D ursina only** — rectangle torso + circle head + arms;
   floating reasoning overlay. No 2D viewer.
 - **Providers:** gpt-5-nano + Ollama, llm_client.py copied from football.
 

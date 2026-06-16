@@ -24,9 +24,14 @@ def lower_ceiling(energy: float, ceiling: float) -> float:
     return ceiling
 
 
-def regen(energy: float, ceiling: float, dt: float) -> float:
-    """Slow recovery while not throwing, clamped to the (ratcheted) ceiling."""
-    return min(ceiling, energy + _E["regen_per_sec"] * dt)
+def stamina_regen_mult(stamina: float) -> float:
+    """A deeper gas tank recovers faster between exchanges (no-op at the 75 baseline)."""
+    return 1.0 + (stamina - 75.0) / 75.0 * _E["stamina_regen_scale"]
+
+
+def regen(energy: float, ceiling: float, dt: float, rate_mult: float = 1.0) -> float:
+    """Slow recovery while not throwing, clamped to the (ratcheted) ceiling. rate_mult scales by stamina."""
+    return min(ceiling, energy + _E["regen_per_sec"] * rate_mult * dt)
 
 
 def output_factor(energy: float) -> float:

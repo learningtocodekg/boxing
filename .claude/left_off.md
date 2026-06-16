@@ -1,7 +1,93 @@
 # Left Off
 Date: 2026-06-16
 
-## Latest session — 1-MIN ROUNDS + LLM-AWARE BETWEEN-ROUND REST + GLOBAL HALF-SPEED
+## Latest session — ONE-HAND-AT-A-TIME + STRENGTH/SPEED REWORK + FIGHTER ASYMMETRY + 4 FOLLOW-UPS
+Long session. Ran the first real 60s round, then three waves of mechanics work. The headline:
+**distinct fighters broke the symmetry-draw** (the long-standing KO blocker) — but exposed that the LLM
+doesn't yet fight to its physical type. Ended by wiring 4 user-requested fixes; did NOT run after them
+(user wants the NEXT agent to run + analyze).
+
+### Wave 0 — ran the first real 60s round (symmetric), analyzed
+- `replays/sixty.json` (renamed from `fifteen.json`; all 3 scenarios + README + viewer now use `sixty*`).
+  Blue dec 62/63 — the lockstep draw. KEY: within-round fatigue WORKS over 60s (energy 99→~24, both
+  cross sag(45) at t≈45, damage accelerates back-half). The "regen won't let anyone tire over a longer
+  round" fear is resolved. Cleaned `replays/` to just `sixty.json` + `forty-five.json` (+ run log).
+
+### Wave 1 — two boxing-fidelity fixes (user: "punches with both hands; rework strength/speed")
+1. **One hand punches at a time.** Was leaking two ways: `_apply` started a windup on BOTH hands in one
+   decision, AND the menu offered "punch" on a hand while the other was mid-punch. Fixed in
+   `sim/runner.py _apply` (a hand punches only if the other isn't `busy()` and none thrown this step;
+   else it holds guard) + `agents/observation.py _hand_legal` (drops "punch" while the other hand is busy)
+   + prompt. Verified live: 0 frames with both hands throwing.
+2. **Strength/speed rework.** `eff_speed = max(speed, strength)` — a strong shot can't be thrown slow
+   (jab fixed-str 3 is unaffected, so fast-weak stays). Feeds windup + energy → power shots cost more.
+   `timing.recovery_time(pt, strength, speed)` now grows with strength (committed = slow reset, dominant)
+   and trims with speed (snappy hand resets quicker): jab snaps back 0.74s, power cross 1.29s, hook 1.67s.
+   New config `timing.speed_recovery_scale: 0.85`. New `tests/test_timing.py`.
+
+### Wave 2 — FIGHTER ASYMMETRY (user: "mismatch reach/height/strength/agility; LLM must know its edges")
+Audited attrs: `power`, `foot_speed`, `stamina` were DEAD; no `height`; `chin` gated off. Gave each a
+real mechanic, **all no-op at the 75 baseline** (so symmetric fights/tests stay byte-identical):
+- **reach** → effective reach distance (`reach.attr_scale_ft`).
+- **height** → head/body reach geometry (`reach.height_head_ft`/`height_body_ft`): a tall boxer tags a
+  short head from range; a short boxer reaches a tall body but must get inside for the head. Threaded into
+  `ring.land_quality(dist, pt, placement, reach, height, opp_height)`.
+- **power** → damage dealt (`damage.power_mult`, `health.power_scale`).
+- **agility** → ALL action speed: windup, reaction_delay, step distance (`ring.step_distance`). Replaces
+  the old `reaction`/`hand_speed`/`foot_speed` reads.
+- **chin** → head-dmg resistance (already wired). **stamina** → regen rate (`energy.stamina_regen_mult`).
+- Two archetypes in `config.rosters`: **out_boxer** (tall/rangy/quick/fragile) vs **pressure**
+  (short/heavy/granite/slow). Scenario picks via `red.roster`/`blue.roster`; `runner._roster()` merges
+  default ← archetype ← inline `attrs`. New `tests/test_roster.py`.
+- **LLM awareness:** `observation._matchup()` compares self vs opp per stat and renders a "YOUR EDGE IN
+  THIS MATCHUP" block; shared prompt tells them to fight to type.
+- **Ran it (`replays/sixty.json`, mismatched):** Blue (pressure) beats Red (out-boxer) **86.6 / 63.1**,
+  Red gassed to 0.1 — **lockstep BROKEN** (was 62/63). But the read: fight was in the pocket **1150/1201
+  frames**; Red NEVER used his range, threw 48 jabs / 1 hook and gassed; Blue used power (19 hooks/3 cross)
+  + granite chin + heavier hands → dealt 36.8 dmg vs Red's 13.4. Mechanics sound; gap is now TACTICAL.
+
+### Wave 3 — 4 follow-ups from watching that fight (DONE, NOT yet run)
+1. **Min distance** — fighters were overlapping ("inside each other"). `ring.clamp_min_distance` +
+   `ring.min_distance_ft: 1.6`, applied after every step in `_apply`. (1.6 < pocket 2.2 + shortest reach,
+   so pocket work still happens.)
+2. **Raw vitals** — `config vitals_display: bands → exact`; `observation._vitals()` now shows
+   `health NN/100, energy NN/100` for BOTH fighters (was qualitative bands). NOTE: this deliberately
+   overrides the long-locked "never show numbers" principle — it's a user experiment, reversible via the
+   config switch. (Openings still use the 45 sag threshold internally; not shown as a number.)
+3. **Firmer matchup prompts** — rewrote `_MATCHUP` lines + the prompt's matchup paragraph: each explains
+   HOW to exploit the edge and WHY (at the wrong range one literally can't land), firm but "this isn't an
+   order — it's the read."
+4. **Power-disadvantage reframed** — the lighter fighter was pawing 48 jabs because the prompt over-sold
+   "outbox, stay cheap." Fixed the POWER-disadvantage matchup line + the jab doctrine (item 4 + the punch
+   bullet): the jab is a SETUP not the score; throw real combinations (cross/hook/uppercut); "a busy jab
+   that never sets up a power shot wins nothing."
+
+### Verified
+- All 5 suites PASS: `test_energy`, `test_damage`, `test_e2e` (mock still Draw/300/1 — clamp doesn't bite),
+  `test_timing`, `test_roster`. Archetype divergence checked numerically (at 3.0 ft the out-boxer jabs the
+  pressure head but pressure can't reach back; pressure hits 24% harder; clamp pushes 0.3ft→1.6ft; raw
+  vitals render correctly).
+
+### Broken / Open
+1. **LLM doesn't fight to type (the live one).** Mismatch is mechanically real but the out-boxer let
+   himself be dragged into a pocket war he can't win and over-threw jabs. Waves 3.1/3.3/3.4 target exactly
+   this (min distance, firmer "use your reach" prompt, throw real shots) — UNTESTED. This is the thing to
+   watch next.
+2. **Still no KO.** Blue won big but conserved too hard to finish a gassed Red. The "ahead fighter should
+   invest in the finish" nudge (prior open item) is still not done.
+3. **Raw-vitals experiment** un-evaluated — does showing numbers actually improve decisions (commit when
+   opp health low / conserve when own energy low), or just leak the abstraction? Watch the reasoning logs.
+4. 3D viewer still never eyeballed live; `forty-five.json` still a pre-asymmetry baseline (deferred).
+
+## NEXT STEP (next session)
+**Run the mismatched 60s round (`python main.py --scenario sim/scenarios/b2_llm_60s.yaml` → `sixty.json`)
+and analyze the 4 changes.** Specifically: (a) is min distance holding — no overlap, and does it read
+better? (b) does the out-boxer now USE his range — fewer pocket frames than 1150/1201, steps out when
+pressured? (c) does the lighter fighter throw REAL shots now (crosses/hooks/uppercuts up from 1, jabs down
+from 48)? (d) do raw vitals change behavior in the reasoning logs? Then the remaining levers are the
+no-KO finish-nudge (open #2) and, if the out-boxer still won't box, a stronger start-at-range setup.
+
+## PRIOR session — 1-MIN ROUNDS + LLM-AWARE BETWEEN-ROUND REST + GLOBAL HALF-SPEED
 User asked "are we done?" then gave three concrete asks: (1) rounds should be 1 minute; (2) the LLMs
 should KNOW that after a round they get +10 energy and +5 health from the rest break; (3) slow the whole
 fight to half speed (his framing: "our 15-second round will end up taking 30 seconds").

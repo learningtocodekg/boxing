@@ -10,7 +10,8 @@ from engine.config import CONFIG
 from engine import ring, damage
 from engine import boxer as B
 from engine.boxer import make_boxer, Hand, WINDUP, RECOVERY, FREE, GUARD
-from engine.energy import punch_energy, regen, lower_ceiling, reaction_penalty as energy_react_pen
+from engine.energy import (punch_energy, regen, lower_ceiling, stamina_regen_mult,
+                           reaction_penalty as energy_react_pen)
 from engine import timing
 from engine.state_machine import FightPhase
 from agents.observation import build_context
@@ -37,6 +38,17 @@ class Fight:
 
 # ---------- helpers ----------
 
+def _roster(spec: dict) -> dict:
+    """A boxer's attributes: the default 75-across baseline overlaid with a named archetype
+    (scenario `roster:`) and/or inline `attrs:` overrides. Distinct rosters make a real mismatch."""
+    attrs = dict(CONFIG["roster_default"])
+    named = spec.get("roster")
+    if named:
+        attrs.update(CONFIG["rosters"][named])
+    attrs.update(spec.get("attrs", {}))
+    return attrs
+
+
 def _eff_strength(hand: Hand) -> float:
     return _JAB_FIX if hand.punch_type == "jab" else hand.strength
 
@@ -57,7 +69,7 @@ def _incoming(self_b: B.BoxerState, opp: B.BoxerState, t: float) -> dict | None:
     for hand in opp.hands:
         if hand.impact_pending and hand.impact_t > t and hand.state == WINDUP:
             ttl = hand.impact_t - t
-            react = timing.reaction_delay(self_b.attrs.get("reaction", 75),
+            react = timing.reaction_delay(self_b.attrs.get("agility", 75),
                                           energy_react_pen(self_b.energy))
             can = ("It is coming — you have time to slip or block it, but not to land a counter first."
                    if ttl >= react else
@@ -81,7 +93,8 @@ def _resolve_impacts(red: B.BoxerState, blue: B.BoxerState, t: float, rng, fight
 def _impact(atk, dfn, hand, t, rng, fight, rec):
     dist = ring.distance(atk.pos, dfn.pos)
     pt, pl = hand.punch_type, hand.placement
-    lq = ring.land_quality(dist, pt, atk.attrs.get("reach", 75))
+    lq = ring.land_quality(dist, pt, pl, atk.attrs.get("reach", 75),
+                           atk.attrs.get("height", 75), dfn.attrs.get("height", 75))
     if lq == 0.0:
         rec.event(t, "whiff", {"by": atk.name, "punch": pt, "reason": "out_of_range"})
         atk.last_action_desc = f"missed a {pt} (out of range)"
@@ -95,7 +108,8 @@ def _impact(atk, dfn, hand, t, rng, fight, rec):
 
     blocked = dfn.guarding()
     roll = rng.uniform(*_H["contest_roll"])
-    raw = damage.raw_damage(pt, pl, _eff_strength(hand), atk.energy, lq, blocked, roll, dfn.energy)
+    raw = damage.raw_damage(pt, pl, _eff_strength(hand), atk.energy, lq, blocked, roll, dfn.energy,
+                            atk.attrs.get("power", 75))
     hd, ed = damage.split(raw, pl, dfn.attrs.get("chin", 75))
 
     gassed_ko = dfn.energy < _E["ko_energy_threshold"] and _E["zero_energy_next_hit_is_ko"] and not blocked
@@ -127,7 +141,7 @@ def _advance(b: B.BoxerState, t: float, dt: float):
     if b.defense and t >= b.defense_locked_until - EPS:
         b.defense = None
     if not b.throwing():
-        b.energy = regen(b.energy, b.energy_ceiling, dt)
+        b.energy = regen(b.energy, b.energy_ceiling, dt, stamina_regen_mult(b.attrs.get("stamina", 75)))
     if b.guarding():
         b.energy = max(0.0, b.energy - _E["guard_energy_per_sec"] * dt)
     b.energy_ceiling = lower_ceiling(b.energy, b.energy_ceiling)
@@ -151,7 +165,7 @@ def _apply(b: B.BoxerState, opp: B.BoxerState, action: dict, t: float, fight: Fi
                 hand.impact_pending = False
                 hand.punch_type = ""
         b.defense = action["defense"]
-        eff = t + timing.reaction_delay(b.attrs.get("reaction", 75), energy_react_pen(b.energy))
+        eff = t + timing.reaction_delay(b.attrs.get("agility", 75), energy_react_pen(b.energy))
         b.defense_effective_t = eff
         # Avoidance window runs from when the slip/duck becomes EFFECTIVE (after the reaction delay),
         # so the head stays offline for the full slip duration rather than having the delay eat into it.
@@ -169,17 +183,27 @@ def _apply(b: B.BoxerState, opp: B.BoxerState, action: dict, t: float, fight: Fi
             elif kind == "free":
                 hand.state = FREE
             elif kind == "punch":
+                # One hand punches at a time: while the OTHER hand is throwing/recovering (or one was
+                # already thrown this step), this hand holds guard instead — a boxer snaps a punch back
+                # to guard before throwing with the other hand, never both at once.
+                other = b.right if hand is b.left else b.left
+                if threw or other.busy():
+                    hand.state = GUARD
+                    continue
                 eff_s = _JAB_FIX if ha["punch_type"] == "jab" else ha["strength"]
-                cost = punch_energy(eff_s, ha["speed"])
+                # A strong shot is committed and can't be thrown slow (momentum) — strength sets a floor
+                # on speed. A jab (eff_s=3) is below any real speed pick, so it stays a free choice.
+                eff_v = max(ha["speed"], eff_s)
+                cost = punch_energy(eff_s, eff_v)
                 if cost > b.energy:
                     hand.state = GUARD
                     continue
                 hand.punch_type, hand.placement = ha["punch_type"], ha["placement"]
-                hand.strength, hand.speed = ha["strength"], ha["speed"]
-                wt = timing.windup_time(ha["punch_type"], ha["speed"], b.attrs.get("hand_speed", 75))
+                hand.strength, hand.speed = eff_s, eff_v
+                wt = timing.windup_time(ha["punch_type"], eff_v, b.attrs.get("agility", 75))
                 hand.windup_end = t + wt
                 hand.impact_t = hand.windup_end
-                hand.recovery_end = hand.impact_t + timing.recovery_time(ha["punch_type"], eff_s)
+                hand.recovery_end = hand.impact_t + timing.recovery_time(ha["punch_type"], eff_s, eff_v)
                 hand.state = WINDUP
                 hand.impact_pending = True
                 b.energy = max(0.0, b.energy - cost)
@@ -187,7 +211,8 @@ def _apply(b: B.BoxerState, opp: B.BoxerState, action: dict, t: float, fight: Fi
                 threw = True
         fw = action.get("footwork")
         if fw and fw != "none":
-            b.pos = ring.step_target(b.pos, opp.pos, fw, CONFIG["footwork"]["step_distance_ft"])
+            b.pos = ring.step_target(b.pos, opp.pos, fw, ring.step_distance(b.attrs.get("agility", 75)))
+            b.pos = ring.clamp_min_distance(b.pos, opp.pos)   # never step inside the opponent
             b.energy = max(0.0, b.energy - _E["step_energy"])
     b.energy_ceiling = lower_ceiling(b.energy, b.energy_ceiling)
     b.last_action_desc = action.get("reasoning") or "resets"
@@ -218,10 +243,9 @@ def run_fight(scenario_path: str | None = None, seed: int | None = None, output:
     dt = _T["dt"]
     rng = make_rng(seed)
 
-    attrs = dict(CONFIG["roster_default"])
     half = sc["start_range"] / 2.0
-    red = make_boxer(sc["red"]["name"], [ring.SIZE / 2, ring.SIZE / 2 - half], attrs)
-    blue = make_boxer(sc["blue"]["name"], [ring.SIZE / 2, ring.SIZE / 2 + half], attrs)
+    red = make_boxer(sc["red"]["name"], [ring.SIZE / 2, ring.SIZE / 2 - half], _roster(sc["red"]))
+    blue = make_boxer(sc["blue"]["name"], [ring.SIZE / 2, ring.SIZE / 2 + half], _roster(sc["blue"]))
 
     # Continuation round: carry health + energy (+ ratcheted ceiling = accumulated fatigue) from a
     # previous round's last frame, with a between-round rest bump (energy + a little health). The

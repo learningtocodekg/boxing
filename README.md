@@ -29,7 +29,7 @@ pip install -r requirements.txt
 Two LLM-vs-LLM scenarios. Each **always overwrites its single replay file** (no pile-up):
 
 ```
-python main.py --scenario sim/scenarios/b2_llm_15s.yaml    # -> replays/fifteen.json     (15s, the everyday test)
+python main.py --scenario sim/scenarios/b2_llm_60s.yaml    # -> replays/sixty.json       (60s round, the everyday test)
 python main.py --scenario sim/scenarios/b2_llm_45s.yaml    # -> replays/forty-five.json  (45s, run occasionally)
 ```
 
@@ -38,15 +38,15 @@ on Ollama instead, install [Ollama](https://ollama.com), `ollama pull qwen3:8b &
 add `--local` (optionally `--model qwen3:8b`). The terminal prints the result, both boxers' final
 health/energy, LLM call counts, and parse errors.
 
-> **Speed:** the model is called once every ~0.1–0.15s of *fight* time, so a 15s round is several
-> minutes of wall-clock. Use the 15s scenario for everyday checks; the 45s only when you need a long
-> round (lets a fighter actually gas out — that's where finishes come from).
+> **Speed:** the model is called once every ~0.2–0.3s of *fight* time, so a 60s round is several
+> minutes of wall-clock. Use the 60s scenario for everyday checks; the 45s only when you need the
+> older long-round baseline (lets a fighter actually gas out — that's where finishes come from).
 
 ### 3. Watch a replay
 
 **2D side-view viewer (recommended — most readable):**
 ```
-python -m render.renderer_2d replays/fifteen.json
+python -m render.renderer_2d replays/sixty.json
 python -m render.renderer_2d replays/forty-five.json
 ```
 Boxers in profile with readable poses (gloves up at the chin in guard, arm cocked on windup then
