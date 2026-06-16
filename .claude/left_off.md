@@ -1,7 +1,53 @@
 # Left Off
-Date: 2026-06-15
+Date: 2026-06-16
 
-## Latest session — POWER SHOTS NOW PAY OFF (jab-fest broken) + 3-round continuation analysis
+## Latest session — 1-MIN ROUNDS + LLM-AWARE BETWEEN-ROUND REST + GLOBAL HALF-SPEED
+User asked "are we done?" then gave three concrete asks: (1) rounds should be 1 minute; (2) the LLMs
+should KNOW that after a round they get +10 energy and +5 health from the rest break; (3) slow the whole
+fight to half speed (his framing: "our 15-second round will end up taking 30 seconds").
+
+### What got done (all three asks)
+1. **1-minute rounds** — `round_seconds: 15 → 60` in all three scenarios (`b2_llm_15s.yaml`, `_r2`, `_r3`).
+2. **Between-round rest, +10 en / +5 hp, and LLM-aware:**
+   - `sim/runner.py` carry block now reads a new `rest_health` field and applies it CAPPED at full:
+     `b.health = min(_H["start"], s["health"] + rest_health)`. (Energy already capped at the ratcheted
+     ceiling via the existing `rest_energy` path.)
+   - `_r2`/`_r3` scenarios: `rest_energy: 5 → 10`, added `rest_health: 5`.
+   - `agents/prompts/boxer_system.txt` (energy paragraph): boxers now told "this is one round of several;
+     between rounds you get a corner rest that gives back a good chunk of your wind and a little of your
+     health, so DON'T reach the bell hoarding a full tank — spend everything on a late finish." Kept
+     band-language / no raw numbers, consistent with the locked no-thresholds design.
+3. **Global half-speed** — in `config.yaml`, DOUBLED every duration so relationships are preserved:
+   windups (jab .18→.36 … uppercut .36→.72), recoveries (jab .38→.76 … uppercut .78→1.56),
+   slip/duck durations+recoveries, `reaction_delay_base` .10→.20, and both poll intervals
+   (opening .1→.2, live .15→.30). Scaling reaction_delay with the windups keeps "jab too fast to slip,
+   power shots slippable" intact; doubling polls also halves idle re-poll token cost.
+
+### Verified
+- All unit tests PASS (`test_energy`, `test_damage`, `test_e2e`) — half-speed timing broke nothing.
+- Mock continuation dry-run (no API) confirmed the carry math: RED hp 40→45 (+5), energy 12→22 then
+  ratchets to the 25 cap; BLUE hp 98→**100** (+5 capped at full), energy 48→**50** (+10 capped at the
+  ratcheted ceiling). Both caps fire correctly.
+- Did NOT run a full 60s LLM fight (token cost; user repeatedly flags tokens). Offered to.
+
+### Broken / Open
+1. **Stale filenames** — scenarios are still `b2_llm_15s*.yaml` → `replays/fifteen*.json` but now run 60s.
+   Left surgical; offered to rename to 60s/sixty (touches README + viewer defaults).
+2. **Within-round fatigue may be lighter at half-speed** — `regen_per_sec` (1.2/s) is per REAL second and
+   unchanged, so over a longer 60s round at a slower throw-rate fighters may recover more between throws.
+   Cross-round ceiling wear-down is unaffected. Did NOT pre-tune (no speculative change without a real
+   fight to measure). WATCH this in the first real 60s run.
+3. **Pre-existing, untouched:** no KO under symmetry (identical boxers diverge never → Draw); continuation
+   is still a manual 3-scenario chain (= roadmap B4); 3D viewer never eyeballed live.
+
+## NEXT STEP (next session)
+**Run the real 60s R1→R2→R3 continuation on GPT-5-nano and read the result.** Confirm (a) the half-speed
+pace looks right / fewer frantic exchanges, (b) the rest carries +10 en / +5 hp between rounds as wired,
+and (c) whether the prompt's "spend at the bell" nudge changes late-round behavior. CRITICAL to watch:
+does the unchanged per-second regen leave nobody tired over a 60s round (open #2)? If so, the wear-down
+chain dies and regen needs a tune. (Token note: a 60s round ≈ 2× the old 15s test.)
+
+## PRIOR session — POWER SHOTS NOW PAY OFF (jab-fest broken) + 3-round continuation analysis
 Goal: make power shots pay off so the fight isn't a jab-fest (open #1). Then: "run a round 3 and analyze."
 
 ### Two-lever fix (BOTH were needed)

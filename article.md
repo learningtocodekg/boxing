@@ -336,3 +336,35 @@ falls far enough behind for the other to load up on a sagging guard while still 
 real KO needs one fighter to be *more* gassed than the other. The wear-down model is now sound and the
 power-shot fix works; the missing ingredient for a knockout is divergence between the fighters (distinct
 stats/styles), not another balance constant.
+
+## Observations (B3, "slow it down" is a scaling problem, not a single knob)
+
+**"Make the fight half-speed" only stays balanced if you scale the things that were tuned *against* each
+other — and one of them is invisible.** The obvious move is to double the punch durations. But the whole
+defense model rests on a *relationship*: `reaction_delay_base` was deliberately set below the jab/cross
+windup and above the hook/uppercut windup, so straight shots land before a slip takes hold while power
+shots are slippable. Double the windups and leave reaction delay alone, and every punch silently becomes
+slippable — the fight's defensive character flips without a single line of obviously-wrong code. The fix
+is to treat half-speed as a uniform time-dilation: every duration *and* the reaction delay scale by the
+same factor, so all the relationships are preserved and only the wall-clock pace changes. The lesson is
+that tuned constants come in coupled sets; a "global" pace change has to move the whole set, and the
+coupling isn't visible from any one value.
+
+**A rate that's denominated in real seconds doesn't scale when you stretch the clock — so slowing the
+fight can quietly neuter fatigue.** Energy regen is `1.2/sec`. Punch *costs* are per-action, so halving
+the throw-rate halves the spend-rate — but regen keeps ticking at 1.2 per real second regardless of pace.
+Stretch a round from 15s to 60s at half-throw-rate and the budget quietly tilts toward recovery: fighters
+get far more idle seconds to bank energy between the same number of throws. The wear-down chain
+(fatigue → sagging guard → open head) depends on fighters actually tiring, so a pure "slow it down + make
+rounds longer" change can dissolve the very mechanic the project was built around — not through a bug, but
+through a rate that doesn't participate in the rescaling. We shipped it unchanged on purpose (no
+speculative tuning without a real fight to measure) but flagged it as the first thing to watch.
+
+**When the user hands you exact numbers for the model to "know," the band-language principle still wins.**
+The ask was "the LLMs should know they get +10 energy and +5 health between rounds." The locked design is
+that the system prompt never exposes raw thresholds — the model reasons in phrases, not integers. Putting
+"+10/+5" in the prompt would be the first numeric leak and wouldn't even help: 10 out of a tank that
+ratchets down has no meaning in band-space. So the knowledge went in qualitatively — "a corner rest gives
+back a good chunk of your wind and a little of your health" — which conveys both the asymmetry (more
+energy than health) and the strategic point (don't hoard at the bell) without breaking the abstraction.
+The user's numbers belong in the *mechanic* (the runner's carry math), not the *prompt*.

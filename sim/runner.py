@@ -224,14 +224,16 @@ def run_fight(scenario_path: str | None = None, seed: int | None = None, output:
     blue = make_boxer(sc["blue"]["name"], [ring.SIZE / 2, ring.SIZE / 2 + half], attrs)
 
     # Continuation round: carry health + energy (+ ratcheted ceiling = accumulated fatigue) from a
-    # previous round's last frame, with a small rest-break energy bump. The ceiling is NOT lifted, so
-    # each round the fighters cap lower — the realistic wear-down a single round can't produce.
+    # previous round's last frame, with a between-round rest bump (energy + a little health). The
+    # ceiling is NOT lifted, so each round the fighters cap lower — the realistic wear-down a single
+    # round can't produce. Health recovers only by rest_health (capped at full); the ceiling drop stays.
     if sc.get("carry_from"):
         prev = json.loads(Path(sc["carry_from"]).read_text(encoding="utf-8"))["frames"][-1]
         rest = sc.get("rest_energy", 0)
+        rest_health = sc.get("rest_health", 0)
         for b, side in ((red, "red"), (blue, "blue")):
             s = prev[side]
-            b.health = s["health"]
+            b.health = min(_H["start"], s["health"] + rest_health)
             b.energy_ceiling = s["energy_ceiling"]
             b.energy = min(b.energy_ceiling, s["energy"] + rest)
     agents = {red.name: _make_agent(sc["red"], local, model),

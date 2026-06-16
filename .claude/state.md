@@ -101,10 +101,25 @@ errors, strategic reasoning, slips now land and decide fights).
   hp, 0.0 vs 0.0 en) → neither falls behind enough to capitalize. KO needs ASYMMETRY, not more tuning.
 - `sim/scenarios/b2_llm_15s_r3.yaml` added (carry_from fifteen_r2.json, +5 rest → fifteen_r3.json).
 
-## NEXT: give boxers ASYMMETRY so a fight can finish (open #1)
-- Wear-down + power-shot levers work; identical fighters never diverge → Draw. Options: distinct roster
-  stats (stamina/recovery/chin so one sags first) or style/seed asymmetry. Re-run R1→R2→R3, confirm the
-  worn fighter eats a power-shot health-KO.
+## DONE latest: 1-MIN ROUNDS + LLM-AWARE REST (+10 en / +5 hp) + GLOBAL HALF-SPEED
+- User asks: rounds = 1 minute; LLMs should KNOW the between-round rest gives +10 energy + +5 health;
+  slow the whole fight to half speed.
+- `round_seconds: 15→60` in all three scenarios. `sim/runner.py` carry block adds `rest_health` applied
+  CAPPED at full (`min(_H["start"], health + rest_health)`); energy already capped at the ratcheted
+  ceiling. `_r2`/`_r3`: `rest_energy 5→10`, `rest_health: 5`. Prompt energy paragraph now tells boxers a
+  corner rest restores a good chunk of wind + a little health, so don't hoard energy at the bell — spend
+  on a late finish (band-language, no raw numbers).
+- Half-speed: `config.yaml` DOUBLED every timing duration (windup/recovery/slip/duck), `reaction_delay_base`
+  .10→.20, poll intervals (opening .1→.2, live .15→.30). Scaled together → slip/block balance preserved.
+- Verified: all unit tests PASS; mock dry-run confirms carry math (hp +5 capped at 100, energy +10 capped
+  at ceiling). Did NOT run a full 60s LLM fight (token cost).
+- OPEN: regen_per_sec (1.2/s) unchanged — over a 60s round at half-pace, within-round fatigue may be too
+  light (watch in first real run). Filenames now stale (15s files run 60s).
+
+## NEXT: run the real 60s R1→R2→R3 + watch within-round fatigue (open: regen vs longer round)
+- Run the 60s continuation on GPT-5-nano; confirm pace, the +10/+5 carry, and whether nobody tires over
+  60s (if so, tune `regen_per_sec`). THEN return to ASYMMETRY for an actual KO (identical fighters never
+  diverge → Draw; distinct stamina/chin/style so one sags first).
 - DEFERRED (per user): regenerate `replays/forty-five.json`; eyeball viewer_3d.html live (R2/R3 unwatched).
 - Continuation is still a manual 3-scenario chain — promote to a real round loop (auto-stop on KO,
   scorecard, between-round ceiling lift) = roadmap B4.

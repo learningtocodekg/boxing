@@ -33,10 +33,10 @@ ring:
 
 time:
   dt: 0.05                       # physics tick (s)
-  opening_poll_interval: 0.1     # cadence both boxers are polled before the first punch
-  live_poll_interval: 0.15       # cadence an idle boxer is re-polled in the live regime
-  round_seconds: 120             # B1 full round; B2 overrides to 15
-  reaction_delay_base: 0.10      # s before a chosen defense is effective (mod by reaction/energy)
+  opening_poll_interval: 0.2     # cadence both boxers are polled before the first punch (half speed)
+  live_poll_interval: 0.30       # cadence an idle boxer is re-polled in the live regime (half speed)
+  round_seconds: 120             # B1 full round; B2 overrides to 60
+  reaction_delay_base: 0.20      # s before a chosen defense is effective (mod by reaction/energy)
                                  # tuned so telegraphed power shots (hook/uppercut) can be slipped,
                                  # but fast straight shots (jab/cross) land before a slip takes hold.
 
@@ -112,13 +112,16 @@ timing:                           # phase durations (s); scaled by speed/strengt
   # Lengthened so a human can SEE each punch: longer recovery keeps the glove extended on screen and
   # stops a hand re-firing instantly (the real "you can't throw 20/sec" limiter — the time to retract
   # and reset). Longer windups also make power shots clearly slippable.
-  windup: {jab: 0.18, cross: 0.26, hook: 0.32, uppercut: 0.36}
+  # HALF SPEED: every duration below (and reaction_delay_base + poll intervals above) is 2x the prior
+  # value, so the whole fight runs at half pace — the relationships (jab too fast to slip, power shots
+  # slippable) are preserved because everything scaled together.
+  windup: {jab: 0.36, cross: 0.52, hook: 0.64, uppercut: 0.72}
   impact_ticks: 1
-  recovery: {jab: 0.38, cross: 0.55, hook: 0.70, uppercut: 0.78}
-  slip_duration: 0.18
-  slip_recovery: 0.12
-  duck_duration: 0.22
-  duck_recovery: 0.15
+  recovery: {jab: 0.76, cross: 1.10, hook: 1.40, uppercut: 1.56}
+  slip_duration: 0.36
+  slip_recovery: 0.24
+  duck_duration: 0.44
+  duck_recovery: 0.30
   speed_windup_scale: 0.6        # windup *= lerp(1.0 .. this) as speed 0->10
   strength_recovery_scale: 1.4   # recovery *= lerp(1.0 .. this) as strength 0->10
 
