@@ -52,6 +52,9 @@ class BoxerState:
     defense_effective_t: float = 0.0
     defense_active_until: float = 0.0
     defense_locked_until: float = 0.0
+    # a committed combo still to fire: list of (start_t, punch_spec, hand_name) the runner pops as time
+    # passes — the follow-up punches of a flurry, fired alternating hands faster than a normal reset.
+    combo_queue: list = field(default_factory=list)
     # bookkeeping
     last_call_t: float = -999.0
     last_commit_t: float = -999.0   # last time this boxer STARTED a punch
@@ -63,6 +66,11 @@ class BoxerState:
 
     def throwing(self) -> bool:
         return self.left.busy() or self.right.busy()
+
+    def winding_up(self) -> bool:
+        """Actively committing a punch (pre-impact). Recovery doesn't count — the arm is resetting and
+        you're getting your breath back, so energy regens during recovery but not during the windup."""
+        return self.left.state == WINDUP or self.right.state == WINDUP
 
     def in_defense(self) -> bool:
         return self.defense is not None

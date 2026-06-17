@@ -425,3 +425,43 @@ clean-but-lighter counters did 14.8. Nobody designed "blocked bombs beat clean p
 the line-specific block factor plus power-scaled leak interacting with two asymmetric stat lines. It's
 exactly how a pressure fighter beats a busier boxer in real life, and it appeared without being asked for,
 which is the rare good kind of emergent behavior (the usual kind is a degenerate jab-fest).
+
+## Observations (B3, the rework: a regen gate, rational body-punching, and combos as recovery-override)
+
+**"Energy drains too fast" was a phase-boundary bug, not a balance number.** A fighter ended a 60-second
+round on ~1 energy out of 100 — flatlined. The instinct is to nudge a cost or a regen rate, but the real
+cause was a category error in one line: regen ran only while `not throwing()`, and `throwing()` was true
+through the *entire* punch — including the long RECOVERY phase where the arm is just coming back to guard
+(0.76s for a jab, 1.4s for a hook). So a busy fighter spent most of the round mechanically forbidden from
+breathing. The fix wasn't a number, it was splitting one predicate into two: you hold your breath on the
+*windup* (the exertion), and you get it back during the recovery (the reset). End energy went from ~1 to
+~21 with no rate change at all. The lesson is the usual one for these sims — when a tuned-looking quantity
+is wildly off, suspect a state-machine boundary before you suspect the constant.
+
+**The model wasn't mis-targeting the body — it was being rational about an 80% wall.** The complaint was
+"real boxers throw mostly to the head; this throws too much body." But a fresh high guard blocked 80% of
+head shots (`block_factor 0.20`) while the body leaked 55%, so until a fighter gassed, the body was simply
+the higher-EV target and the model went there — correctly, given the rules. No amount of "aim upstairs"
+prose fixes a payoff matrix that punishes upstairs. Dropping the fresh-guard block to leak 30% (a guard
+that stops 70% is still a strong guard) flipped the EV, and head-targeting jumped to 98%/71% across the two
+fighters with the same prompt nudge that had done nothing before. Third time this project has hit the same
+wall: the model's "bad" behavior was the rational read of the mechanics, and the cheap fix is the mechanic,
+not the paragraph.
+
+**Combos are just "fire the next punch before the hand has reset" — and that one override carried the
+whole feature.** The fight had good *gaps* but no *bursts*: every exchange was one punch, then a full
+recovery, then a re-poll — structurally one-offs, because a hand can't throw again until it resets and the
+other hand is pinned to guard while it's busy (a rule added earlier to stop both fists firing at once). The
+question was whether to add a second "short-term energy" resource (the user's own first guess) or something
+simpler. The simpler thing won: a combo is a single decision that schedules 2-3 follow-up punches which
+*force-fire on the alternating hand even while the previous hand is still recovering* — overriding exactly
+the reset that was serializing everything. That one override is the entire mechanic; no second resource, no
+new bar. It also turned out to be token-*cheaper* than the status quo, because one LLM call now buys a whole
+flurry instead of one punch — calls stayed flat (80 vs 78) while punches thrown rose ~60%. And it produced
+the rhythm the user wanted on the first run: measure, measure, then a three-punch jab-cross-hook, with the
+model reasoning about it explicitly ("jab to measure, then drive the cross while he's recovering, then the
+hook"). Worth noting what *didn't* need touching: the renderer reads hand states per frame, so rapid
+alternating windups animate as a flurry for free — the feature was visible without a single line of viewer
+code. The combined effect (combos + viable head shots) flipped the result outright: the rangy boxer who'd
+been losing in a brawl now out-pointed the pressure fighter 55-46 by stringing clean head combinations —
+the asymmetry finally expressing itself as *style* rather than just a damage-leak accounting quirk.

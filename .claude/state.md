@@ -156,14 +156,24 @@ errors, strategic reasoning, slips now land and decide fights).
   **8jab/27power**, pocket 96%→80%, steps out (63 circle/back vs 6 fwd), damage-taken 36.8→19.3. Still NO
   KO — Blue ahead w/ 15.6 en let gassed Red (0.8) survive (open finish-nudge). 0 parse errors, exit 0.
 
-## NEXT: MAJOR REWORK — 4 user problems, commit-first then fix→run→analyze→break
-1. **Energy drains too fast** (~1 after ONE round) — `engine/energy.py` regen/punch_energy or a 60s budget.
-2. **Body shots land too LOW** — placement geometry (`engine/ring.py land_quality` / placement weighting).
-3. **Targeting wrong** — IRL most shots HEAD/neck; game over-distributes to body (placement weighting + prompt).
-4. **No combos** — gaps good but one-offs only (punch-wait-punch-wait); want bursts (jab…jab…jab-hook-cross)
-   + risk-taking flurry. User floats short-term-energy bar but it's IMPLEMENTER'S CHOICE (prompt vs mechanic).
-- DEFERRED: regenerate `replays/forty-five.json`; eyeball viewer_3d.html live; continuation→real round loop
-  (auto-KO-stop, scorecard, ceiling lift) = roadmap B4; no-KO finish-nudge (ahead fighter won't commit).
+## DONE latest: MAJOR REWORK — energy/targeting/combos (4 user problems) all fixed + verified
+1. **Energy** — regen gate `not throwing()` starved regen through long RECOVERY phases. Now regens unless
+   actively WINDING UP (`BoxerState.winding_up()`; `_advance`). + `step_energy 0.4→0.3`. End energy ~21 (was ~1).
+2. **Body-shot height** — `viewer_3d.html` glove+flash body target y 3.0→3.3 (solar plexus, not belt).
+3. **Head targeting** — `block_factor 0.20→0.30` (fresh head guard leaks more → headhunting worthwhile;
+   sag-leak endpoints UNCHANGED, only fresh value) + prompt head-primary/body-as-setup. Result 98%/71% head.
+4. **COMBOS (new mechanic)** — LLM adds `combo` list (1-3 follow-ups) to a lead punch; engine fires them
+   alternating hands `timing.combo_interval`(0.25s) apart, force-overriding recovery, each costing energy,
+   fighter committed (mid-combo = busy in `_needs_decision`, gassed mid-combo clears queue). `_launch_punch`
+   helper + `_fire_combo` stage in runner; `combo_queue` on BoxerState; schema parses/validates; new
+   `tests/test_combo.py`. Result: 16 flurries each, mostly 3-punch jab-cross-hook. ONE call per flurry → tokens flat.
+- RAN `replays/sixty.json`: Red(out_boxer) FLIPPED to a decisive **55.5/45.5 win** (was losing 80.7/85.3),
+  ~3× damage, 23 clean head lands. Still no KO. All 6 suites PASS; exit 0; 0 parse errors.
+
+## NEXT: eyeball viewer (combos read as flurries? bodyY right?) THEN the no-KO finish-nudge
+- DEFERRED: regenerate `replays/forty-five.json`; continuation→real round loop (auto-KO-stop, scorecard,
+  ceiling lift) = roadmap B4. block_factor 0.30 is the first dial to revisit if KOs ever come too easy.
+- NOTE: this session's commits are LOCAL only — push to origin main was blocked by the auto-mode classifier.
 
 ## What exists
 - `PRD.md` — full design (long). Source of truth for mechanics.

@@ -240,7 +240,7 @@ scene.add(red, blue);
 // glove local target by hand state. Local space: +z = forward (toward opponent), +x = that hand's side
 function gloveLocal(state, placement, side) {
   // side: -1 left, +1 right
-  const headY = 4.55, bodyY = 3.0, chinY = 4.2;
+  const headY = 4.55, bodyY = 3.3, chinY = 4.2;   // bodyY at the solar plexus / ribs (torso center ~3.4), not the belt
   const toHead = placement.startsWith('head');
   if (state === 'recovery')           // punch landed / extended out front
     return new THREE.Vector3(side*0.12, toHead ? headY : bodyY, 1.55);
@@ -319,7 +319,7 @@ function spawnFlash(grp, ev) {
   const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color:col,
     side:THREE.DoubleSide, transparent:true }));
   // place near the struck boxer's head/body, out in front
-  const fwd = new THREE.Vector3(0, toHead?4.5:3.0, 1.2).applyQuaternion(grp.quaternion);
+  const fwd = new THREE.Vector3(0, toHead?4.5:3.3, 1.2).applyQuaternion(grp.quaternion);
   m.position.copy(grp.position).add(fwd);
   m.lookAt(camera.position);
   scene.add(m);

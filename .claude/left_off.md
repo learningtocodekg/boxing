@@ -1,7 +1,68 @@
 # Left Off
 Date: 2026-06-16
 
-## Latest session — RAN + ANALYZED the 4-change 60s round (all 4 WORK; LLM now fights to type). User then gave 4 NEW problems; THIS commit saves the working pre-rework version.
+## Latest session — MAJOR REWORK: energy/targeting/combos. 4 user problems fixed + verified; fight flipped decisive.
+User gave 4 problems after watching the prior run, asked: commit-first (done, see PRIOR entry), apply fixes,
+run a fresh 60s, analyze, break. ALL FOUR fixed and confirmed in one run. Headline: real 3-punch combos now
+fire, shots go upstairs, energy no longer flatlines — and the out-boxer flipped from losing to a decisive win.
+
+### The 4 problems → fixes (all verified in `replays/sixty.json`, Red out_boxer vs Blue pressure, seed 42)
+1. **Energy drained too fast (~1 after one round).** ROOT CAUSE: regen gate was `not throwing()`, and
+   `throwing()` includes the long RECOVERY phase (jab 0.76s … hook 1.4s) — over a 60s round of slow
+   recoveries, regen was starved. FIX: regen runs unless *actively winding up* (you breathe as the arm
+   resets). New `BoxerState.winding_up()`; `runner._advance` gates on it. + `step_energy 0.4→0.3`.
+   RESULT: end energy **20.9 / 20.7** (was 0.8 / 15.6), min ~20 — tired-but-functional, still cross sag(45)
+   late (t≈42-44) so the wear-down chain still fires.
+2. **Body shots landed too low (viewer).** Glove/flash body target was y=3.0 (belt); torso center ~3.4.
+   FIX: `viewer_3d.html` bodyY 3.0→3.3 + flash body 3.0→3.3 (solar plexus/ribs). Visual — user eyeballs.
+3. **Too few head shots (IRL most go head/neck).** ROOT CAUSE: fresh head guard blocked 80%
+   (`block_factor 0.20`) so body (leaks 0.55) was the only rational target until sag. FIX:
+   `block_factor 0.20→0.30` (headhunting a fresh guard now worthwhile; sag-leak endpoints UNCHANGED —
+   jab-empty still 0.75, hook still 1.0, only fresh value moved) + prompt reframed head-primary / body-as-setup.
+   RESULT: **Red 98% head (57/1), Blue 71% head (36/15)**; ALL jabs to head; all 28 clean lands to the head.
+4. **No combos (punch-wait-punch one-offs).** Implemented EXPLICIT COMBOS (chosen over short-term-energy bar
+   — simpler, and one LLM call per flurry keeps tokens flat). The LLM adds a `combo` list (1-3 follow-ups) to
+   its lead punch; engine fires them alternating hands `combo_interval`(0.25s) apart, FORCE-overriding the
+   normal recovery reset (that's what makes it a flurry), each costing energy, fighter COMMITTED (can't
+   defend/re-decide until it plays out — `_needs_decision` treats a pending queue as busy; gassed mid-combo
+   kills the rest). RESULT: **16 flurries each**, mostly 3-punch jab-cross-hook; 46/58 punches in bursts +
+   12 singles = the measure-measure-BURST rhythm. Confirmed firing: t=2.25 jab(L)→2.5 cross(R)→2.75 hook(L).
+   LLM reasons it explicitly ("jab to measure, then drive a hard cross while he's recovering, then a hook").
+
+### BONUS — the fight flipped and got decisive
+Red (out-boxer) now **WINS 55.5 / 45.5** (was losing 80.7/85.3), ~3× total damage (54.5+44.5 vs 14.8+19.3),
+23 clean lands all head. The sharp combination boxer out-points the plodding pressure fighter. Still NO KO
+but much closer. LLM calls 80/84 (was 78/71) — combos did NOT blow up token cost. 0 parse errors.
+
+### Files touched
+`config.yaml` (regen comment + step_energy + block_factor + timing.combo_interval/combo_max_followups),
+`engine/boxer.py` (combo_queue field + winding_up()), `agents/schema.py` (parse+validate `combo`),
+`sim/runner.py` (`_launch_punch` helper extracted, `_fire_combo` stage, combo scheduling in `_apply`,
+regen gate, busy-includes-combo), `agents/prompts/boxer_system.txt` (head-primary + combos + item 7),
+`render/viewer_3d.html` (bodyY), `tests/test_damage.py` (0.20→0.30), NEW `tests/test_combo.py`.
+
+### Verified
+- All 6 suites PASS (test_energy/damage/e2e/timing/roster + new **test_combo**: scheduling, alternating
+  hands, energy cost, recovery-override, gas-out). Run exited 0, 1201 frames, 0 parse errors both fighters.
+
+### Broken / Open
+1. **Still no KO.** Fight is far more damaging + decisive (Blue to 45.5) but nobody finishes. Both end ~20
+   energy / 45-55 hp. The finish-nudge (ahead fighter commits to a gassed opponent) is still not done.
+2. **Combo balance unwatched on screen.** 3-punch flurries fire correctly in data but NOT eyeballed in the
+   3D viewer — do they read as a flurry, and does the new bodyY look right? Open #2 from the viewer angle.
+3. **block_factor 0.30 + combos = more damaging fight.** Intended, but if it ever trends toward a too-easy
+   KO, 0.30 is the first dial to revisit. Right now it's well-balanced (close decision).
+4. **Push blocked.** The commits this session are LOCAL only — the auto-mode classifier denied
+   `git push origin main` (bypasses PR review). Must push manually (`git push origin main`) or approve.
+
+## NEXT STEP (next session)
+**Eyeball `render/viewer_3d.html` with the new `replays/sixty.json`** — confirm the 3-punch combos read as
+real flurries on screen and the raised body-shot height (3.3) looks right (open #2). THEN tackle the last
+gap: **the no-KO finish** (open #1) — the fight is now damaging and decisive but nobody gets stopped; add the
+"ahead fighter invests energy to finish a hurt/gassed opponent" nudge (prompt and/or a mechanic) and see if
+a real health-KO finally lands. (Token note: 60s round ≈ a few min.)
+
+## PRIOR session — RAN + ANALYZED the 4-change 60s round (all 4 WORK; LLM now fights to type). User then gave 4 NEW problems; THIS commit saves the working pre-rework version.
 Short session: ran the mismatched 60s round that the previous agent had wired-but-not-run, confirmed all
 4 changes landed, and the LLM finally fights to type. User then handed 4 new problems for a major rework
 and asked to **commit this version first** (this break), THEN apply fixes, run, analyze, break again.

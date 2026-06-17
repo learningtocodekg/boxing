@@ -34,7 +34,7 @@ def test_jab_uses_fixed_strength():
 def test_block_heavily_reduces():
     clean = D.raw_damage("cross", "head_center", 8, 100.0, 1.0, False, 1.0)
     blocked = D.raw_damage("cross", "head_center", 8, 100.0, 1.0, True, 1.0)
-    assert approx(blocked, clean * 0.20), (clean, blocked)
+    assert approx(blocked, clean * 0.30), (clean, blocked)
 
 
 def test_body_leaks_past_guard():
@@ -52,7 +52,7 @@ def test_sagging_guard_leaks_head_shots():
     # A FRESH guard blocks the head tight (0.20x); a fully gassed guard SAGS and leaks much more.
     fresh = D.raw_damage("hook", "head_center", 10, 100.0, 1.0, True, 1.0, defender_energy=100.0)
     sagged = D.raw_damage("hook", "head_center", 10, 100.0, 1.0, True, 1.0, defender_energy=0.0)
-    assert approx(fresh, 9.6 * 0.20), fresh
+    assert approx(fresh, 9.6 * 0.30), fresh
     assert approx(sagged, 9.6 * 1.0), sagged        # hook (power 1.6) blasts through a fully sagging guard
     assert sagged > fresh
     # at the sag threshold the guard is still tight; just inside it has begun to leak
@@ -71,8 +71,8 @@ def test_sagging_guard_leaks_power_more_than_jab():
     assert approx(hook_leak, 1.0), hook_leak         # 0.20 + 0.55*1.6 = 1.08 -> capped at 1.0
     assert hook_leak > jab_leak
     # a FRESH guard blocks both tight regardless of power (no sag yet)
-    assert approx(D.block_multiplier("head_center", 100.0, "jab"), 0.20)
-    assert approx(D.block_multiplier("head_center", 100.0, "hook"), 0.20)
+    assert approx(D.block_multiplier("head_center", 100.0, "jab"), 0.30)
+    assert approx(D.block_multiplier("head_center", 100.0, "hook"), 0.30)
 
 
 def test_degraded_attacker_hits_softer():

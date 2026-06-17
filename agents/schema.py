@@ -5,13 +5,16 @@ so the engine can never receive an impossible action.
 """
 import json
 
+from engine.config import CONFIG
+
 _PLACEMENTS = ("head_center", "head_left", "head_right", "body_left", "body_center")
 _PUNCH_TYPES = ("jab", "cross", "hook", "uppercut")
 _DEFENSES = ("slip_left", "slip_right", "duck")
+_COMBO_MAX = CONFIG["timing"]["combo_max_followups"]
 
 
 def safe_default(ctx: dict, reasoning: str = "fallback: cover up") -> dict:
-    act = {"footwork": None, "defense": None, "reasoning": reasoning}
+    act = {"footwork": None, "defense": None, "combo": [], "reasoning": reasoning}
     for hk in ("left_hand", "right_hand"):
         act[hk] = None if ctx["legal"][hk] == "LOCKED" else {"action": "guard"}
     return act
@@ -55,6 +58,24 @@ def _validate_hand(hand, legal_opts, ctx):
             "strength": strength, "speed": _clamp(hand.get("speed", 5))}
 
 
+def _validate_combo(raw, ctx) -> list:
+    """Follow-up punches of a flurry. Each is validated like a hand punch (in-range type, real placement,
+    affordable strength); anything invalid is dropped. Capped at combo_max_followups."""
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for item in raw[:_COMBO_MAX]:
+        if not isinstance(item, dict):
+            continue
+        pt, pl = item.get("punch_type"), item.get("placement")
+        if pt not in ctx["legal"]["types_in_range"] or pl not in _PLACEMENTS:
+            continue
+        strength = min(_clamp(item.get("strength", 5)), ctx["legal"]["max_strength"])
+        out.append({"punch_type": pt, "placement": pl,
+                    "strength": strength, "speed": _clamp(item.get("speed", 5))})
+    return out
+
+
 def parse_action(raw: str, ctx: dict) -> dict:
     try:
         data = json.loads(_strip_fences(raw))
@@ -79,10 +100,16 @@ def parse_action(raw: str, ctx: dict) -> dict:
         footwork = None
         left = right = None
 
+    # A combo is the follow-up punches of a flurry; it only rides on a real LEAD punch this step (and never
+    # while defending). No lead punch -> no combo.
+    has_lead = any(h and h.get("action") == "punch" for h in (left, right))
+    combo = _validate_combo(data.get("combo"), ctx) if (has_lead and defense is None) else []
+
     return {
         "left_hand": left,
         "right_hand": right,
         "footwork": footwork,
         "defense": defense,
+        "combo": combo,
         "reasoning": str(data.get("reasoning", ""))[:400],
     }

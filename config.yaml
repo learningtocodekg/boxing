@@ -50,11 +50,14 @@ energy:
   cost_b: 0.22
   cost_c: 2.00
   # NOTE: energy cost depends on strength & speed ONLY — punch type does not affect it.
-  step_energy: 0.4
+  step_energy: 0.3
   slip_energy: 0.3
   duck_energy: 0.5
   guard_energy_per_sec: 0.2
-  regen_per_sec: 1.2             # only while not throwing (idle/guard/circle)
+  regen_per_sec: 1.2             # recovers whenever NOT actively winding up a punch (incl. during a hand's
+                                 # recovery/reset — you get your breath back as the arm comes home, you
+                                 # only hold it on the exertion of the windup). Was "not throwing at all",
+                                 # which starved regen over a long round of slow recoveries.
   stamina_regen_scale: 0.6       # regen rate *= 1 + (stamina-75)/75 * this: a deeper gas tank recovers
                                  # faster between exchanges and sags later (no-op at the 75 baseline)
   ratchet_caps: [75, 50, 25]     # once below a cap, can never exceed it again this round
@@ -93,7 +96,11 @@ health:
     head_right:  0.10
     body_left:   0.70
     body_center: 0.65
-  block_factor: 0.20             # head shots into a FRESH high guard are heavily reduced
+  block_factor: 0.30             # head shots into a FRESH high guard are reduced (was 0.20 — too strong a
+                                 # wall, so the body was the only rational target until the guard sagged;
+                                 # at 0.30 headhunting a fresh guard is worthwhile, so most shots go upstairs
+                                 # like real boxing). NOTE: the sagging lerp endpoints are unchanged — a jab
+                                 # at empty still leaks 0.75, a hook still ~1.0 — only the fresh value moved.
   block_factor_sagging: 0.75     # head block when the blocker is fully gassed: a tired guard SAGS and
                                  # leaks (honors observation's "sagging" read). Lerps block_factor ->
                                  # this as the blocker's energy falls from guard_sags_below_energy to 0.
@@ -141,6 +148,10 @@ timing:                           # phase durations (s); scaled by speed/strengt
   strength_recovery_scale: 1.4   # recovery *= lerp(1.0 .. this) as strength 0->10 (committed = slow reset)
   speed_recovery_scale: 0.85     # recovery *= lerp(1.0 .. this) as speed 0->10 (snappy hand resets quicker;
                                  # strength dominates, so a jab snaps back while a power shot stays exposed)
+  combo_interval: 0.25           # gap between punches in a COMBO — shorter than any single punch's recovery,
+                                 # so a combo's punches chain fast (alternating hands), overriding the normal
+                                 # reset. This is what produces a visible flurry instead of one-off punches.
+  combo_max_followups: 3         # at most this many follow-up punches after the lead punch (so 4 total).
 
 # Boxer attributes (0-150, baseline 75 = neutral; every effect is a NO-OP at 75 so two 75-across boxers
 # fight identically). Each stat now has a distinct mechanical effect:

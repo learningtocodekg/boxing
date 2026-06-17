@@ -140,7 +140,7 @@ def _advance(b: B.BoxerState, t: float, dt: float):
             hand.punch_type = ""
     if b.defense and t >= b.defense_locked_until - EPS:
         b.defense = None
-    if not b.throwing():
+    if not b.winding_up():
         b.energy = regen(b.energy, b.energy_ceiling, dt, stamina_regen_mult(b.attrs.get("stamina", 75)))
     if b.guarding():
         b.energy = max(0.0, b.energy - _E["guard_energy_per_sec"] * dt)
@@ -150,14 +150,55 @@ def _advance(b: B.BoxerState, t: float, dt: float):
 def _needs_decision(b: B.BoxerState, opp: B.BoxerState, t: float, first_punch: bool) -> bool:
     if not first_punch:
         return (t - b.last_call_t) >= _T["opening_poll_interval"] - EPS
-    busy = b.throwing() or b.in_defense()
+    busy = b.throwing() or b.in_defense() or bool(b.combo_queue)
     reactive = (opp.last_commit_t > b.last_call_t) and opp.has_pending_punch(t) and not b.fully_locked()
     idle = (not busy) and (t - b.last_call_t) >= _T["live_poll_interval"] - EPS
     return reactive or idle
 
 
+def _launch_punch(b: B.BoxerState, hand: Hand, pt: str, placement: str,
+                  strength_in: float, speed_in: float, t: float) -> bool:
+    """Start a punch on `hand`: set its windup/impact/recovery clocks and pay its energy. A strong shot
+    can't be thrown slow (strength floors speed). Returns False (and changes nothing) if it's unaffordable."""
+    eff_s = _JAB_FIX if pt == "jab" else strength_in
+    eff_v = max(speed_in, eff_s)
+    cost = punch_energy(eff_s, eff_v)
+    if cost > b.energy:
+        return False
+    hand.punch_type, hand.placement = pt, placement
+    hand.strength, hand.speed = eff_s, eff_v
+    wt = timing.windup_time(pt, eff_v, b.attrs.get("agility", 75))
+    hand.windup_end = t + wt
+    hand.impact_t = hand.windup_end
+    hand.recovery_end = hand.impact_t + timing.recovery_time(pt, eff_s, eff_v)
+    hand.state = WINDUP
+    hand.impact_pending = True
+    b.energy = max(0.0, b.energy - cost)
+    b.last_commit_t = t
+    return True
+
+
+def _fire_combo(b: B.BoxerState, t: float):
+    """Launch any committed combo follow-ups whose time has come. Force-fires the scheduled hand even while
+    it's still RECOVERING from the previous punch — that faster-than-normal reset is what makes a flurry a
+    flurry. If the hand hasn't landed its previous shot yet (still winding up) the punch waits a tick rather
+    than cancel it; if the boxer can't afford the next punch the combo dies there (gassed mid-flurry)."""
+    while b.combo_queue and b.combo_queue[0][0] <= t + EPS:
+        start, spec, hand_name = b.combo_queue[0]
+        hand = b.left if hand_name == "left" else b.right
+        if hand.state == WINDUP:                       # prior shot not landed yet — don't clobber it
+            b.combo_queue[0] = (t + _T["dt"], spec, hand_name)
+            return
+        b.combo_queue.pop(0)
+        if not _launch_punch(b, hand, spec["punch_type"], spec["placement"],
+                             spec["strength"], spec["speed"], t):
+            b.combo_queue.clear()
+            return
+
+
 def _apply(b: B.BoxerState, opp: B.BoxerState, action: dict, t: float, fight: Fight, rec: Recorder):
     threw = False
+    primary_hand = None
     if action.get("defense"):
         for hand in b.hands:                      # cancel any in-flight punch
             if hand.state == WINDUP:
@@ -190,30 +231,27 @@ def _apply(b: B.BoxerState, opp: B.BoxerState, action: dict, t: float, fight: Fi
                 if threw or other.busy():
                     hand.state = GUARD
                     continue
-                eff_s = _JAB_FIX if ha["punch_type"] == "jab" else ha["strength"]
-                # A strong shot is committed and can't be thrown slow (momentum) — strength sets a floor
-                # on speed. A jab (eff_s=3) is below any real speed pick, so it stays a free choice.
-                eff_v = max(ha["speed"], eff_s)
-                cost = punch_energy(eff_s, eff_v)
-                if cost > b.energy:
+                if not _launch_punch(b, hand, ha["punch_type"], ha["placement"],
+                                     ha["strength"], ha["speed"], t):
                     hand.state = GUARD
                     continue
-                hand.punch_type, hand.placement = ha["punch_type"], ha["placement"]
-                hand.strength, hand.speed = eff_s, eff_v
-                wt = timing.windup_time(ha["punch_type"], eff_v, b.attrs.get("agility", 75))
-                hand.windup_end = t + wt
-                hand.impact_t = hand.windup_end
-                hand.recovery_end = hand.impact_t + timing.recovery_time(ha["punch_type"], eff_s, eff_v)
-                hand.state = WINDUP
-                hand.impact_pending = True
-                b.energy = max(0.0, b.energy - cost)
-                b.last_commit_t = t
+                primary_hand = "left" if hand is b.left else "right"
                 threw = True
         fw = action.get("footwork")
         if fw and fw != "none":
             b.pos = ring.step_target(b.pos, opp.pos, fw, ring.step_distance(b.attrs.get("agility", 75)))
             b.pos = ring.clamp_min_distance(b.pos, opp.pos)   # never step inside the opponent
             b.energy = max(0.0, b.energy - _E["step_energy"])
+        # A combo rides on the lead punch: schedule the follow-ups, alternating hands starting from the
+        # one OPPOSITE the lead, each combo_interval apart. The fighter is now committed (see _needs_decision)
+        # and _fire_combo plays them out tick by tick. No lead punch -> the parser already dropped the combo.
+        combo = action.get("combo") or []
+        if threw and combo:
+            interval = CONFIG["timing"]["combo_interval"]
+            nh = "right" if primary_hand == "left" else "left"
+            for i, spec in enumerate(combo):
+                b.combo_queue.append((t + interval * (i + 1), spec, nh))
+                nh = "right" if nh == "left" else "left"
     b.energy_ceiling = lower_ceiling(b.energy, b.energy_ceiling)
     b.last_action_desc = action.get("reasoning") or "resets"
     if threw:
@@ -274,6 +312,8 @@ def run_fight(scenario_path: str | None = None, seed: int | None = None, output:
             break
         _advance(red, t, dt)
         _advance(blue, t, dt)
+        _fire_combo(red, t)
+        _fire_combo(blue, t)
 
         decisions = {}
         phase = FightPhase.OPENING if not fight.first_punch else FightPhase.LIVE
