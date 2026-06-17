@@ -170,10 +170,33 @@ errors, strategic reasoning, slips now land and decide fights).
 - RAN `replays/sixty.json`: Red(out_boxer) FLIPPED to a decisive **55.5/45.5 win** (was losing 80.7/85.3),
   ~3× damage, 23 clean head lands. Still no KO. All 6 suites PASS; exit 0; 0 parse errors.
 
-## NEXT: eyeball viewer (combos read as flurries? bodyY right?) THEN the no-KO finish-nudge
+## DONE latest: FIRST HEALTH-KO + both-hands-punching combo bug fixed
+- **Both-hands bug (CODE, not viewer):** combo follow-ups force-fired `combo_interval` (0.25s) after the
+  lead, shorter than a power windup (cross 0.52/hook 0.64) → two gloves in WINDUP at once (old run: Red 42/
+  Blue 103 frames). FIX `runner._fire_combo`: a follow-up waits until NO hand is winding up, then overrides
+  RECOVERY (still a fast flurry). New `test_combo_never_two_windups_at_once`. Live: both-WINDUP 0/0, flurries
+  intact (16/14 three-punch bursts unchanged).
+- **No-KO finish — user reframed:** energy must NEVER reach 0 before health (0 energy = passed out; you get
+  there BECAUSE you've been hit). Root cause of no-KO = exhaustion lockstep: both hit ~0 energy together, so
+  the ahead fighter can't afford the finishing combo (and punches cap at 0.6). The "spend everything" nudge
+  was physically impossible to obey.
+- **Vulnerability mechanic** (`damage.vulnerability_mult`, config `health.hurt_vulnerability_scale: 1.0`):
+  a tired DEFENDER takes more HEALTH damage, 1.0x full → 2.0x empty (linear), applied in `damage.split`
+  (health only; body→energy untouched). `runner._impact` passes `dfn.energy`. Health now ACCELERATES to 0
+  as energy dwindles → KO lands on health before energy flatlines. + slower drain (`regen 1.2→1.6`,
+  `step_energy 0.3→0.2`) so energy outlasts health.
+- **Scenario preset support** (`runner`): boxer spec may set `health`/`energy`(+`energy_ceiling`, default=
+  set energy). New `b2_llm_60s_sim2.yaml` (Blue 40/53, Red 60/44) simulates a worn round-2 in ONE fresh run.
+- **Finish nudge** added to `boxer_system.txt` item 6 (opp in single digits → rip a power combo, END it).
+- **RESULT `replays/sixty_2.json`: Red wins by KO at 30.15s** — Blue health -0.1 with energy STILL 24.8;
+  energy never hit 0 (0 frames, either fighter). First real health-KO. All 6 suites PASS; 0 parse errors.
+
+## NEXT: re-run a FRESH 100-hp round-1 to confirm the GLOBAL vulnerability+drain changes stay balanced
+- Verified only from a WORN round-2 state. Fresh round-1 (`sixty.json`) NOT re-run — could now blow out
+  early. If it KOs before ~45-50s, lower `hurt_vulnerability_scale` (1.0→~0.7) / trim regen toward 1.4.
 - DEFERRED: regenerate `replays/forty-five.json`; continuation→real round loop (auto-KO-stop, scorecard,
-  ceiling lift) = roadmap B4. block_factor 0.30 is the first dial to revisit if KOs ever come too easy.
-- NOTE: this session's commits are LOCAL only — push to origin main was blocked by the auto-mode classifier.
+  ceiling lift) = roadmap B4. `hurt_vulnerability_scale` is now the primary KO dial (block_factor 0.30 next).
+- NOTE: prior sessions' commits were LOCAL only — push to origin main was blocked by the auto-mode classifier.
 
 ## What exists
 - `PRD.md` — full design (long). Source of truth for mechanics.

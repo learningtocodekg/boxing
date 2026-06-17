@@ -39,6 +39,16 @@ def power_mult(attacker_power: float) -> float:
     return 1.0 + (attacker_power - _CHIN_BASELINE) / _CHIN_BASELINE * _H["power_scale"]
 
 
+def vulnerability_mult(defender_energy: float) -> float:
+    """How much MORE health damage a tired defender takes. A gassed fighter can't roll with a shot, his
+    guard is down and his legs are gone, so the same clean punch hurts him more — health damage scales up
+    as his energy falls (1.0 at full -> 1 + hurt_vulnerability_scale at empty). This is what makes HEALTH
+    accelerate to 0 (the KO) before energy flatlines: you get rocked harder the more spent you are. It
+    touches HEALTH damage only — body shots still drain energy at the flat rate."""
+    frac = max(0.0, min(1.0, defender_energy / _H["start"]))
+    return 1.0 + (1.0 - frac) * _H["hurt_vulnerability_scale"]
+
+
 def raw_damage(punch_type: str, placement: str, strength: float,
                attacker_energy: float, land_quality: float,
                blocked: bool, contest_roll: float, defender_energy: float = 100.0,
@@ -59,11 +69,13 @@ def raw_damage(punch_type: str, placement: str, strength: float,
             * contest_roll)
 
 
-def split(raw: float, placement: str, defender_chin: float = _CHIN_BASELINE) -> tuple[float, float]:
+def split(raw: float, placement: str, defender_chin: float = _CHIN_BASELINE,
+          defender_energy: float = 100.0) -> tuple[float, float]:
     """Split raw potency into (health_damage, energy_damage). Head shots -> health, body shots -> energy.
-    Defender chin divides health damage only (neutral at baseline)."""
+    Defender chin divides health damage only (neutral at baseline). A tired defender takes MORE health
+    damage (vulnerability_mult) — that's what lets health reach 0 before energy does."""
     resistance = defender_chin / _CHIN_BASELINE
-    health = raw * _H["placement_health_share"][placement] / resistance
+    health = raw * _H["placement_health_share"][placement] / resistance * vulnerability_mult(defender_energy)
     energy = raw * _H["placement_energy_share"][placement]
     return health, energy
 

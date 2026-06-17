@@ -81,10 +81,28 @@ def test_degraded_attacker_hits_softer():
     assert approx(gassed, full * 0.6), (full, gassed)
 
 
+def test_tired_defender_takes_more_health_damage():
+    # The vulnerability mechanic: the SAME raw shot does more HEALTH damage to a gassed defender (he can't
+    # defend), so health accelerates to 0 as energy dwindles. Energy damage is unaffected (body still flat).
+    raw = D.raw_damage("hook", "head_center", 10, 100.0, 1.0, False, 1.0)   # 9.6, defender fresh
+    fresh_h, _ = D.split(raw, "head_center", defender_energy=100.0)
+    empty_h, _ = D.split(raw, "head_center", defender_energy=0.0)
+    assert approx(fresh_h, 9.6), fresh_h            # full energy -> 1.0x, unchanged
+    assert approx(empty_h, 9.6 * 2.0), empty_h      # empty -> 2.0x (hurt_vulnerability_scale 1.0)
+    half_h, _ = D.split(raw, "head_center", defender_energy=50.0)
+    assert approx(half_h, 9.6 * 1.5), half_h        # linear
+    # body energy-drain is NOT amplified by the defender's fatigue
+    rb = D.raw_damage("hook", "body_left", 10, 100.0, 1.0, False, 1.0)
+    _, fresh_e = D.split(rb, "body_left", defender_energy=100.0)
+    _, empty_e = D.split(rb, "body_left", defender_energy=0.0)
+    assert approx(fresh_e, empty_e), (fresh_e, empty_e)
+
+
 if __name__ == "__main__":
     for fn in [test_clean_max_hook_to_chin, test_body_shot_drains_energy_more_than_health,
                test_jab_uses_fixed_strength, test_block_heavily_reduces, test_body_leaks_past_guard,
                test_sagging_guard_leaks_head_shots, test_sagging_guard_leaks_power_more_than_jab,
-               test_degraded_attacker_hits_softer]:
+               test_degraded_attacker_hits_softer, test_tired_defender_takes_more_health_damage]:
         fn()
-    print("--- PASS --- damage: formula, head/body split, jab-fixed, block, degradation verified")
+    print("--- PASS --- damage: formula, head/body split, jab-fixed, block, degradation, "
+          "tired-defender-vulnerability verified")

@@ -1,0 +1,10 @@
+name: B2 LLM vs LLM sim-R2
+round_seconds: 60
+start_range: 4.0
+seed: 42
+output: replays/sixty_2.json       # simulated round-2 state, fresh run (no carry)
+# Simulate a round-2 starting state directly (no carry replay): worn fighters, energy below health so the
+# vulnerability mechanic can drive a health-KO before energy bottoms out. energy_ceiling defaults to the
+# set energy, so each can recover up to where he started but no higher.
+red:  {type: llm, name: Red,  roster: out_boxer, health: 60, energy: 44}   # tall, rangy, quick
+blue: {type: llm, name: Blue, roster: pressure,  health: 40, energy: 53}   # short, heavy-handed, granite

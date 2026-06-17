@@ -1,7 +1,74 @@
 # Left Off
-Date: 2026-06-16
+Date: 2026-06-17
 
-## Latest session — MAJOR REWORK: energy/targeting/combos. 4 user problems fixed + verified; fight flipped decisive.
+## Latest session — FIRST REAL HEALTH-KO + both-hands-punching bug fixed. Health now reaches 0 before energy.
+Resumed at "eyeball viewer + no-KO finish-nudge". User had eyeballed the viewer (looked like a real fight)
+and gave 3 things: (1) still sees both hands punching at once — bug or viewer?; (2) eyeball good; (3) make
+the finish a small prompt nudge when opp is very low (~5-10 hp). Then, after seeing a round-2 still not KO,
+we reframed the whole no-KO problem and landed the project's FIRST health-KO.
+
+### 1. "Both hands punching" — was a CODE bug in the combo path (not the viewer). FIXED + verified.
+Data proved it: old `sixty.json` had frames with BOTH hands in WINDUP (Red 42 / Blue 103). Cause: the combo
+scheduler force-fires the next follow-up `combo_interval` (0.25s) after the lead, but a power punch's windup
+is longer (cross 0.52s, hook 0.64s) — so the follow-up began winding up BEFORE the lead landed = two gloves
+cocked at once. The "one hand at a time" guard lived only in the per-decision path; the combo bypassed it.
+FIX (`runner._fire_combo`): a follow-up waits until NO hand is still winding up (prev punch has landed),
+then force-fires over RECOVERY (still a fast flurry). New deterministic test `test_combo_never_two_windups_at_once`.
+VERIFIED LIVE: both-WINDUP now 0/0 in every new run, and flurries SURVIVED the fix (still 16/14 three-punch
+bursts — same as before). The 427/463 "both gloves extended" frames are the CORRECT combo visual (one
+winding the next as the other retracts), not the bug.
+
+### 2. The no-KO finish — user REFRAMED it; the real fix was a vulnerability mechanic, not just a nudge.
+First added the finish nudge to the prompt (item 6: opp in single digits / "out on his feet" -> rip a
+committed power combo upstairs and END it, don't pace for a decision). Parses clean (0 errors). BUT a
+single 60s round caps the loser at ~45-47 hp, so the nudge can't fire. Ran a real round-2 carry
+(`sixty_2.json`, carry from R1) -> Red dec 31.3 / Blue 16.0, STILL no KO. The data showed WHY: by the time
+Blue was hurt (16-25 hp), Red (ahead) was pinned at ~0.1 energy for the whole second half — at 0 energy you
+CAN'T throw the finishing combo (can't afford it) and punches cap at 0.6 power. The nudge was physically
+impossible to obey. **Exhaustion lockstep: both bottom out at 0 energy together, so nobody can capitalize.**
+
+USER'S REFRAME (the key insight): *energy must NEVER hit 0 before health.* In real boxing 0 energy = passed
+out; you reach it BECAUSE you've been getting rocked — the hits end it, not the gas. So: as energy dwindles
+you should take MORE damage, such that HEALTH reaches 0 first. Then run a FRESH round simulating a round-2
+state: Blue 40hp/53en, Red 60hp/44en.
+
+### 3. Implemented + VERIFIED — FIRST HEALTH-KO.
+- **Vulnerability mechanic** (`damage.vulnerability_mult`, config `health.hurt_vulnerability_scale: 1.0`):
+  a tired DEFENDER takes more HEALTH damage — 1.0x at full energy -> 2.0x at empty (linear). Applied in
+  `damage.split` (health only; body->energy drain untouched). `runner._impact` passes `dfn.energy`. This
+  makes health ACCELERATE to 0 as energy falls, so the KO lands on health before energy flatlines.
+- **Slower energy drain** so energy outlasts health: `regen_per_sec 1.2->1.6`, `step_energy 0.3->0.2`.
+- **Scenario preset support** (`runner`): a boxer spec can set `health`/`energy` (+ optional
+  `energy_ceiling`, default = set energy so it only dwindles). New `sim/scenarios/b2_llm_60s_sim2.yaml`
+  (Blue 40/53, Red 60/44). Lets us simulate a worn round in ONE fresh run instead of a 3-round carry chain.
+- **RESULT (`replays/sixty_2.json`): Red wins by KO at 30.15s.** Blue health -0.1 while energy STILL 24.8;
+  Red ended 12.1 hp / 14.5 en. ENERGY NEVER HIT 0 (0 frames at ~0 en, either fighter) — health crossed zero
+  first exactly as asked. Finish nudge fired (Blue 7.6 -> 3.2 -> KO'd). both-WINDUP 0/0. 0 parse errors.
+- New test `test_tired_defender_takes_more_health_damage` (+ body-drain NOT amplified). All 6 suites PASS.
+
+### Broken / Open
+1. **Global-balance unverified on a FRESH 100-hp round.** The vulnerability + slower-drain changes are
+   GLOBAL — they make the normal `sixty.json` (round 1 from 100 hp) more damaging too. We tuned/verified
+   against a WORN round-2 state only. A fresh round-1 was NOT re-run — it could now be a too-early blowout
+   or still fine. **This is the #1 thing to check next** (offered, user went to /break first).
+2. **`hurt_vulnerability_scale: 1.0` is the new primary KO dial.** 2.0x at empty produced a clean 30s KO
+   from a worn state; if fresh rounds KO too early, this is the first knob to lower (try 0.6-0.8).
+3. `forty-five.json` still a stale pre-rework baseline (deferred). Continuation->real round loop (auto-KO
+   stop, scorecard, ceiling lift) still = roadmap B4. `sixty_2.json` is now the simulated-R2 KO run (was
+   the carry-R2 run earlier this session — overwritten on purpose).
+4. Push history: prior sessions' commits were local-only (auto-mode classifier blocked `git push`). This
+   session attempts the push per /break; if blocked, user pushes manually.
+
+## NEXT STEP (next session)
+**Re-run a FRESH round-1 (`python main.py --scenario sim/scenarios/b2_llm_60s.yaml` -> `sixty.json`) and
+confirm the global vulnerability + slower-drain changes still produce a COMPETITIVE ~60s fight from 100 hp**
+— not an early blowout. Watch: does anyone KO before ~45-50s (too easy)? does the loser still finish in a
+reasonable hp band, energy never hitting 0 before health? If it blows out early, lower
+`health.hurt_vulnerability_scale` (1.0 -> ~0.7) and/or trim regen back toward 1.4. The MECHANIC is proven
+(first health-KO landed from a worn state); the open question is purely whether the same numbers are
+balanced from full health. (Token note: 1 fresh 60s round ≈ a few min.)
+
+## PRIOR session — MAJOR REWORK: energy/targeting/combos. 4 user problems fixed + verified; fight flipped decisive.
 User gave 4 problems after watching the prior run, asked: commit-first (done, see PRIOR entry), apply fixes,
 run a fresh 60s, analyze, break. ALL FOUR fixed and confirmed in one run. Headline: real 3-punch combos now
 fire, shots go upstairs, energy no longer flatlines — and the out-boxer flipped from losing to a decisive win.

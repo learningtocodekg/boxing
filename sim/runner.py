@@ -110,7 +110,7 @@ def _impact(atk, dfn, hand, t, rng, fight, rec):
     roll = rng.uniform(*_H["contest_roll"])
     raw = damage.raw_damage(pt, pl, _eff_strength(hand), atk.energy, lq, blocked, roll, dfn.energy,
                             atk.attrs.get("power", 75))
-    hd, ed = damage.split(raw, pl, dfn.attrs.get("chin", 75))
+    hd, ed = damage.split(raw, pl, dfn.attrs.get("chin", 75), dfn.energy)
 
     gassed_ko = dfn.energy < _E["ko_energy_threshold"] and _E["zero_energy_next_hit_is_ko"] and not blocked
     dfn.health -= hd
@@ -186,7 +186,11 @@ def _fire_combo(b: B.BoxerState, t: float):
     while b.combo_queue and b.combo_queue[0][0] <= t + EPS:
         start, spec, hand_name = b.combo_queue[0]
         hand = b.left if hand_name == "left" else b.right
-        if hand.state == WINDUP:                       # prior shot not landed yet — don't clobber it
+        other = b.right if hand_name == "left" else b.left
+        # Fire the next flurry shot only once the PREVIOUS one has landed — i.e. no hand is still winding
+        # up. The combo still overrides RECOVERY (the fast reset that makes it a flurry), but never lets two
+        # gloves wind up at once: one punch lands as the next leaves, honoring one-hand-at-a-time.
+        if hand.state == WINDUP or other.state == WINDUP:
             b.combo_queue[0] = (t + _T["dt"], spec, hand_name)
             return
         b.combo_queue.pop(0)
@@ -298,6 +302,17 @@ def run_fight(scenario_path: str | None = None, seed: int | None = None, output:
             b.health = min(_H["start"], s["health"] + rest_health)
             b.energy_ceiling = s["energy_ceiling"]
             b.energy = min(b.energy_ceiling, s["energy"] + rest)
+
+    # Inline starting-state overrides (e.g. simulate a round-2 state directly without carrying a replay):
+    # a boxer spec may set `health` / `energy` (+ optional `energy_ceiling`, default = the set energy so
+    # the fighter can recover up to where he started but no higher — energy only dwindles from there).
+    for b, side in ((red, "red"), (blue, "blue")):
+        spec = sc[side]
+        if "health" in spec:
+            b.health = float(spec["health"])
+        if "energy" in spec:
+            b.energy = float(spec["energy"])
+            b.energy_ceiling = float(spec.get("energy_ceiling", b.energy))
     agents = {red.name: _make_agent(sc["red"], local, model),
               blue.name: _make_agent(sc["blue"], local, model)}
 

@@ -50,11 +50,14 @@ energy:
   cost_b: 0.22
   cost_c: 2.00
   # NOTE: energy cost depends on strength & speed ONLY — punch type does not affect it.
-  step_energy: 0.3
+  step_energy: 0.2               # was 0.3 — footwork was draining energy too fast over a long round
   slip_energy: 0.3
   duck_energy: 0.5
   guard_energy_per_sec: 0.2
-  regen_per_sec: 1.2             # recovers whenever NOT actively winding up a punch (incl. during a hand's
+  regen_per_sec: 1.6             # was 1.2 — energy was cratering to 0 by mid-round (before health). It must
+                                 # NOT bottom out before health: a faster recover keeps energy a gradually
+                                 # dwindling resource while HEALTH (amplified by hurt_vulnerability) reaches
+                                 # zero first. recovers whenever NOT actively winding up a punch (incl. during a hand's
                                  # recovery/reset — you get your breath back as the arm comes home, you
                                  # only hold it on the exertion of the windup). Was "not throwing at all",
                                  # which starved regen over a long round of slow recoveries.
@@ -111,6 +114,12 @@ health:
   zero_health_is_ko: true
   power_scale: 0.5               # damage *= 1 + (attacker_power-75)/75 * this: a stronger boxer's same
                                  # 0-10 punch lands a bit harder (no-op at the 75 baseline)
+  hurt_vulnerability_scale: 1.0  # HEALTH damage *= 1 + (1 - defender_energy/100) * this: a gassed fighter
+                                 # can't defend, so the same clean shot hurts him MORE the more spent he is
+                                 # (1.0x at full energy -> 2.0x at empty). This makes health ACCELERATE to
+                                 # zero as energy dwindles — so the KO (health 0) lands before energy 0,
+                                 # and "0 energy" reads as "been getting rocked", not the cause of the KO.
+                                 # Health-only: body shots still drain energy at the flat rate.
 
 reach:                            # feet, by punch type
   jab: 3.2

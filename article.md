@@ -465,3 +465,42 @@ alternating windups animate as a flurry for free — the feature was visible wit
 code. The combined effect (combos + viable head shots) flipped the result outright: the rangy boxer who'd
 been losing in a brawl now out-pointed the pressure fighter 55-46 by stringing clean head combinations —
 the asymmetry finally expressing itself as *style* rather than just a damage-leak accounting quirk.
+
+## Observations (B3, the first real KO — and why "both hands punching" was the combo's fault)
+
+**The combo feature that flipped the fight also quietly broke the one-hand-at-a-time rule.** A user
+watching the 3D viewer reported still seeing both fists out punching — and wasn't sure if it was a render
+glitch or a real bug. It was real, and it was the combo override eating its own invariant. The combo fires
+follow-ups a fixed `combo_interval` (0.25s) after the lead, but a power punch's *windup* is longer than
+that (cross 0.52s, hook 0.64s) — so the follow-up's windup began before the lead had even landed, and for a
+fraction of a second two gloves were genuinely cocked to throw. The earlier "one hand at a time" guard
+lived in the per-decision path; the combo scheduler bypassed it entirely. The fix was one extra clause:
+a follow-up waits until *no* hand is still winding up (the previous punch has landed) before it fires. It
+still overrides RECOVERY — the fast reset that makes a flurry a flurry — but never overlaps two windups.
+Effective flurry cadence becomes "one lands as the next leaves," which is both correct boxing and what the
+viewer should show. Lesson: when you add a mechanic that *overrides* a timing rule, check which invariants
+that timing rule was silently enforcing.
+
+**The KO had been blocked by the wrong resource hitting zero first.** For the entire project a knockout
+never landed, and the recurring symptom was exhaustion lockstep: by the time a fighter was hurt enough to
+finish, *both* fighters were pinned at ~0 energy — and at 0 energy you can't throw the finishing combo (it
+can't afford the next punch) and your punches are capped at 0.6 power. So the "spend everything on the
+finish" prompt nudge was physically impossible to obey. The user's diagnosis was sharper than ours and
+reframed the whole thing: *energy should never reach zero before health.* In real boxing 0 energy isn't a
+state you fight in — you reach it because you've been getting hit, and the hits, not the gas, end it. That
+inverts the causality we'd built: we had energy as an independent resource that bottomed out on its own
+schedule. The fix was a **vulnerability multiplier** — a tired defender takes *more* health damage (1.0× at
+full energy → 2.0× at empty), applied to health only so the body→energy drain is untouched. Now health
+*accelerates* downward as energy dwindles, so it crosses zero first; energy stays a gradually-declining
+budget that makes you easier to hurt, never the thing that fells you. With a slower drain (regen 1.2→1.6,
+step cost 0.3→0.2) so energy outlasts health, a worn round-2 state (40hp/53en vs 60hp/44en) produced the
+project's **first health-KO at 30s — loser's health at −0.1 while his energy was still 24.8, and neither
+fighter ever touched 0 energy.** The lesson that keeps recurring here: when a desired outcome (a KO) is
+unreachable, check whether two coupled resources are racing in the wrong order before you tune either one.
+
+**A clean-room "round 2" beat carrying a real one.** Testing the finish needed a worn, mid-fight state, and
+the existing path was a 3-round carry chain (run R1, carry to R2, carry to R3) — expensive and noisy. The
+cheaper move was to let a scenario *preset* health/energy directly and simulate the round-2 state in a
+single fresh run. It made the test a one-round experiment with hand-picked stats (deliberately giving the
+higher-health fighter *less* energy, to check the vulnerability coupling drove the KO rather than the health
+gap), and it's the seed of proper scenario fixtures for balance work.
