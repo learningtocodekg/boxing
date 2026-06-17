@@ -1,7 +1,61 @@
 # Left Off
 Date: 2026-06-16
 
-## Latest session — ONE-HAND-AT-A-TIME + STRENGTH/SPEED REWORK + FIGHTER ASYMMETRY + 4 FOLLOW-UPS
+## Latest session — RAN + ANALYZED the 4-change 60s round (all 4 WORK; LLM now fights to type). User then gave 4 NEW problems; THIS commit saves the working pre-rework version.
+Short session: ran the mismatched 60s round that the previous agent had wired-but-not-run, confirmed all
+4 changes landed, and the LLM finally fights to type. User then handed 4 new problems for a major rework
+and asked to **commit this version first** (this break), THEN apply fixes, run, analyze, break again.
+
+### Ran the fresh mismatched 60s (`replays/sixty.json`, Red out_boxer vs Blue pressure, seed 42, GPT-5-nano)
+Validated the analysis script against the OLD replay first (reproduced the documented baseline exactly:
+pocket 1150/1201, Red 48jab/1power, Blue dealt 36.8) — then overwrote it with the new run. Result:
+**all 4 of the previous agent's changes work.** Verdict per change (new vs baseline):
+
+| metric | baseline (pre-changes) | this run |
+|---|---|---|
+| result | Blue dec 86.6 / 63.1 | **Blue dec 85.3 / 80.7** (far closer) |
+| min center-distance | 0.045 ft, 872 overlap frames | **1.60 ft, 0 real overlap** (clamp pins 1.5995) |
+| in-pocket frames | 1150/1201 (96%) | **961/1201 (80%)** + 220 jab-range + 20 fully out |
+| Red punch mix | **48 jab / 1 power** | **8 jab / 27 power** (19 cross, 8 hook) |
+| Red clean lands | 14 (all jab) | **10 (8 cross, 2 jab)** |
+| Red footwork | — | **63 circle/back vs 6 forward** (steps out, doesn't march in) |
+| damage Red took | 36.8 | **19.3** (survived by boxing) |
+| numeric vitals in reasoning | 0 / 0 | **Red 7 / Blue 3** (acted on, not just leaked) |
+
+- **#1 min-distance — holds.** Clamp pins center-dist at 1.5995; 0 frames below 1.59 (was 0.045 ft deep overlap).
+- **#2 raw vitals — change behavior.** Red at 0 energy explicitly STOPS throwing power, circles to ride it
+  out ("I'm at 0 energy, so I can't throw power shots… conserve"); Blue reads opp's sagging head to time a hook.
+- **#3 firmer matchup prompts + #4 power-disadvantage reframe — landed hardest.** Red's jab-fest (48/1)
+  became real combinations (8jab/27power), and he banks range as defense (circles ~10×, marches 6×).
+- **Wrinkle (realistic):** Red landed 10 clean to Blue's 0, yet Blue won — Blue's heavier hands LEAKED
+  19.3 dmg through the guard (21 blocked power shots) vs Red's 14.8 clean. Pressure fighter's blocked power
+  still outscores the boxer's clean counters. **Still no KO** (open #2): Blue ahead w/ 15.6 en, Red gassed
+  to 0.8, but Blue conserved instead of finishing.
+
+### USER'S 4 NEW PROBLEMS (the major rework — to apply NEXT, after this commit)
+1. **Energy drains too fast** — down to ~1 after ONE round. Cost too high and/or regen too low over 60s.
+2. **Body shots land too LOW** — placement geometry puts body shots below where they should be.
+3. **Targeting wrong** — IRL most jabs / most shots go HEAD/neck; game spreads too much to the body.
+4. **No combos / fight too slow in a NEW way.** Earlier problem was constant punching (fixed). NOW the gaps
+   are good but it's punch-wait-punch-wait one-offs — never a quick BURST (jab…jab…then jab-hook-jab-cross).
+   Someone needs to take a risk and unload. User floats a "short-term energy bar" but says it may be prompt
+   or mechanic instead — IMPLEMENTER'S CHOICE.
+
+### Verified (this session)
+- Run exited 0, 1201 frames, **0 parse errors** both fighters. No code changed this session → test suite unaffected.
+- Analysis script saved at the job tmp dir; reproduces the documented baseline byte-for-byte.
+
+## NEXT STEP (next session)
+**Apply fixes for the 4 new problems, then run a fresh 60s + analyze, then break.** Likely touch
+points: (1) `engine/energy.py` regen_per_sec / `punch_energy` anchors (or a per-60s budget) — energy
+shouldn't bottom out at 1 after one round; (2+3) `engine/ring.py land_quality` / placement geometry +
+the action-space placement weighting + prompt so shots favor HEAD and body shots sit higher; (4) combos —
+evaluate a short-term/stamina "burst" pool vs a prompt-or-mechanic nudge that lets a fighter throw 2-4
+punches in quick succession (relax the one-hand-at-a-time / per-step single-throw gate for a deliberate
+combo) and rewards a risk-taking flurry. Decide combos approach explicitly before coding (user flagged
+short-term energy "may not be the best implementation").
+
+## PRIOR session — ONE-HAND-AT-A-TIME + STRENGTH/SPEED REWORK + FIGHTER ASYMMETRY + 4 FOLLOW-UPS
 Long session. Ran the first real 60s round, then three waves of mechanics work. The headline:
 **distinct fighters broke the symmetry-draw** (the long-standing KO blocker) — but exposed that the LLM
 doesn't yet fight to its physical type. Ended by wiring 4 user-requested fixes; did NOT run after them

@@ -402,3 +402,26 @@ just doesn't stand and swap bombs. A disadvantage has to be framed as *what to d
 combinations, then slide off) — not only *what to avoid* — because the model over-applies pure avoidance
 into passivity. Same failure shape as an over-tuned "conserve" doctrine: a negative instruction with no
 positive target collapses to doing nothing.
+
+## Observations (B3, the scaffolding hypothesis paid off — and a "who won" surprise)
+
+**A 1.6 ft floor and a reframed prompt got the model to box.** The prior entry ended on a hypothesis:
+imposing a style may need mechanical scaffolding (a minimum range), not just better prose. Tested it. Two
+changes — a hard `min_distance_ft` clamp so fighters can't occupy the same square, plus rewriting the
+weak-puncher's brief from "outbox, stay cheap" to "the jab is a SETUP not the score, throw real
+combinations" — flipped the out-boxer's behavior wholesale: 48 jabs/1 power shot became 8 jabs/27 power,
+time-in-pocket dropped 96%→80%, and he started stepping out and countering with crosses instead of being
+dragged into a brawl. Damage taken fell from 36.8 to 19.3. The interesting part is that the clamp is a
+crude, almost dumb mechanism — it doesn't *teach* range, it just makes overlap physically impossible — and
+yet it was enough to let the prose instructions finally take. The plan didn't need to be more persuasive;
+the world needed to stop offering the move the plan told him to avoid. That's the same lesson as removing
+illegal moves from the menu: the cheapest way to change an LLM's behavior is often to change what's
+*possible*, not what it's *told*.
+
+**The model landed 10 clean shots to zero and still lost — correctly.** A pleasant accident of the
+damage model: the out-boxer out-landed the pressure fighter 10 clean to 0, yet lost the decision, because
+the pressure fighter's *blocked* power shots leaked 19.3 health through a tiring guard while the boxer's
+clean-but-lighter counters did 14.8. Nobody designed "blocked bombs beat clean pawing" — it fell out of
+the line-specific block factor plus power-scaled leak interacting with two asymmetric stat lines. It's
+exactly how a pressure fighter beats a busier boxer in real life, and it appeared without being asked for,
+which is the rare good kind of emergent behavior (the usual kind is a degenerate jab-fest).

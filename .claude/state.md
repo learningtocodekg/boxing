@@ -149,13 +149,21 @@ errors, strategic reasoning, slips now land and decide fights).
 4. **Power-disadvantage reframed**: lighter fighter pawed 48 jabs; now told jab=setup not score, throw real
    combinations (`_MATCHUP` power line + jab doctrine items).
 
-## NEXT: run mismatched 60s + analyze the 4 changes (does the LLM finally fight to type?)
-- `python main.py --scenario sim/scenarios/b2_llm_60s.yaml`. Watch: min-distance holding/looks better;
-  out-boxer USING range (fewer pocket frames than 1150/1201, steps out when pressured); lighter fighter
-  throwing REAL shots (crosses/hooks up from 1, jabs down from 48); raw vitals changing reasoning. THEN the
-  no-KO finish-nudge (ahead fighter won't commit to finish a gassed opponent).
-- DEFERRED: regenerate `replays/forty-five.json` (pre-asymmetry baseline); eyeball viewer_3d.html live;
-  continuation→real round loop (auto-KO-stop, scorecard, ceiling lift) = roadmap B4.
+## DONE latest: RAN + analyzed the 4-change 60s round — all 4 changes WORK, LLM now fights to type
+- `replays/sixty.json` (Red out_boxer vs Blue pressure, seed 42, GPT-5-nano): Blue dec **85.3/80.7** (was
+  86.6/63.1 — far closer). #1 min-dist holds (1.60 ft, 0 overlap, was 0.045/872 frames). #2 raw vitals
+  acted on (Red at 0 en stops throwing power, circles to recover). #3/#4 hardest win: Red 48jab/1power →
+  **8jab/27power**, pocket 96%→80%, steps out (63 circle/back vs 6 fwd), damage-taken 36.8→19.3. Still NO
+  KO — Blue ahead w/ 15.6 en let gassed Red (0.8) survive (open finish-nudge). 0 parse errors, exit 0.
+
+## NEXT: MAJOR REWORK — 4 user problems, commit-first then fix→run→analyze→break
+1. **Energy drains too fast** (~1 after ONE round) — `engine/energy.py` regen/punch_energy or a 60s budget.
+2. **Body shots land too LOW** — placement geometry (`engine/ring.py land_quality` / placement weighting).
+3. **Targeting wrong** — IRL most shots HEAD/neck; game over-distributes to body (placement weighting + prompt).
+4. **No combos** — gaps good but one-offs only (punch-wait-punch-wait); want bursts (jab…jab…jab-hook-cross)
+   + risk-taking flurry. User floats short-term-energy bar but it's IMPLEMENTER'S CHOICE (prompt vs mechanic).
+- DEFERRED: regenerate `replays/forty-five.json`; eyeball viewer_3d.html live; continuation→real round loop
+  (auto-KO-stop, scorecard, ceiling lift) = roadmap B4; no-KO finish-nudge (ahead fighter won't commit).
 
 ## What exists
 - `PRD.md` — full design (long). Source of truth for mechanics.
