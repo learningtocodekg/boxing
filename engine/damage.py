@@ -4,8 +4,10 @@ from .config import CONFIG
 from .energy import output_factor
 
 _H = CONFIG["health"]
+_R = CONFIG["rock"]
 _SAG_AT = CONFIG["observation"]["guard_sags_below_energy"]  # same threshold the observation reads "sagging"
 _CHIN_BASELINE = 75.0  # roster baseline; chin == baseline -> no resistance effect (identical boxers, v1)
+_POWER_PUNCHES = ("cross", "hook", "uppercut")  # a jab never rocks — only a real shot does
 
 
 def strength_value(punch_type: str, strength: float) -> float:
@@ -78,6 +80,52 @@ def split(raw: float, placement: str, defender_chin: float = _CHIN_BASELINE,
     health = raw * _H["placement_health_share"][placement] / resistance * vulnerability_mult(defender_energy)
     energy = raw * _H["placement_energy_share"][placement]
     return health, energy
+
+
+def rock_severity(punch_type: str, placement: str, health_dmg: float, energy_dmg: float,
+                  blocked: bool) -> str:
+    """How badly a landed shot rocks the defender: "none" / "light" / "medium" / "hard".
+    Only a CLEAN (unblocked) POWER shot can rock — a jab or a blocked shot never does. Head shots are
+    tiered by the HEALTH damage they deal, body shots by the ENERGY damage. Because the tiers are damage-
+    gated, a fresh fighter (small damage) shrugs shots off and a hurt/tired one (vulnerability-amplified)
+    gets rocked, so stuns only show up when someone's actually hurt — not an early stun-lock."""
+    if not _R["enable"] or blocked or punch_type not in _POWER_PUNCHES:
+        return "none"
+    tiers, dmg = (_R["body_dmg"], energy_dmg) if placement.startswith("body") else (_R["head_dmg"], health_dmg)
+    if dmg >= tiers["hard"]:
+        return "hard"
+    if dmg >= tiers["medium"]:
+        return "medium"
+    if dmg >= tiers["light"]:
+        return "light"
+    return "none"
+
+
+def rock_duration(severity: str, placement: str) -> float:
+    """Seconds the defender is stunned, by tier — more damage (higher tier) = longer; a body rock of the
+    same tier lasts a bit less than a head one (location matters)."""
+    if severity == "none":
+        return 0.0
+    dur = _R["duration"][severity]
+    if placement.startswith("body"):
+        dur *= _R["body_duration_scale"]
+    return dur
+
+
+def head_reaction(placement: str, quality: str, health_dmg: float):
+    """Which head-hit-reaction animation the struck figure plays: "light" / "medium" / "hard" (or None).
+    Only HEAD shots that actually connect (clean/glancing, not blocked) get one, and EVERY such hit gets a
+    reaction — a jab still snaps the head, so the floor is "light" — tiered up by HEALTH damage on the same
+    thresholds as a head rock. This is the per-hit ANIMATION cue, distinct from `rock_severity` (the
+    gameplay stun, which only power shots trigger). Body shots return None (no head animation)."""
+    if quality == "blocked" or not placement.startswith("head"):
+        return None
+    tiers = _R["head_dmg"]
+    if health_dmg >= tiers["hard"]:
+        return "hard"
+    if health_dmg >= tiers["medium"]:
+        return "medium"
+    return "light"
 
 
 def glancing_mult() -> float:

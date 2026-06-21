@@ -122,9 +122,23 @@ def _impact(atk, dfn, hand, t, rng, fight, rec):
     # stop it, so it reads "clean", not "blocked" (matches the observation's "sagging" read).
     sagging_leak = blocked and not pl.startswith("body") and dfn.energy < _OBS["guard_sags_below_energy"]
     tag = ("glancing" if lq < 1.0 else "clean") if (not blocked or sagging_leak) else "blocked"
+    # A real shot that lands hard ROCKS him: stunned for a beat (offense offline, defense intact). Gated on
+    # damage, so it only fires once he's hurt enough — and getting rocked aborts HIS own offense.
+    rocked = damage.rock_severity(pt, pl, hd, ed, tag == "blocked")
+    rock_dur = damage.rock_duration(rocked, pl)
+    if rock_dur > 0:
+        dfn.rocked_until = max(dfn.rocked_until, t + rock_dur)
+        dfn.combo_queue.clear()
+        for h in dfn.hands:
+            if h.state == B.WINDUP:
+                h.state, h.impact_pending, h.punch_type = B.GUARD, False, ""
+    # Which head-hit-reaction animation the struck figure plays (light/medium/hard) — every head connect
+    # gets one (a jab still snaps the head); None for body/blocked. Separate from `rock` (the gameplay stun).
+    reaction = damage.head_reaction(pl, tag, hd)
     rec.event(t, "land", {"by": atk.name, "hand": hand_name, "target": dfn.name,
                           "punch": pt, "placement": pl, "quality": tag,
-                          "health_dmg": round(hd, 2), "energy_dmg": round(ed, 2)})
+                          "health_dmg": round(hd, 2), "energy_dmg": round(ed, 2),
+                          "rock": rocked, "reaction": reaction})
     atk.last_action_desc = f"landed a {pt} to your {pl.replace('_', ' ')}"
 
     if gassed_ko or dfn.health <= 0.0:
@@ -233,9 +247,10 @@ def _apply(b: B.BoxerState, opp: B.BoxerState, action: dict, t: float, fight: Fi
             elif kind == "punch":
                 # One hand punches at a time: while the OTHER hand is throwing/recovering (or one was
                 # already thrown this step), this hand holds guard instead — a boxer snaps a punch back
-                # to guard before throwing with the other hand, never both at once.
+                # to guard before throwing with the other hand, never both at once. A ROCKED fighter can't
+                # throw at all (offense offline) — he covers up.
                 other = b.right if hand is b.left else b.left
-                if threw or other.busy():
+                if b.rocked(t) or threw or other.busy():
                     hand.state = GUARD
                     continue
                 if not _launch_punch(b, hand, ha["punch_type"], ha["placement"],

@@ -55,6 +55,8 @@ class BoxerState:
     # a committed combo still to fire: list of (start_t, punch_spec, hand_name) the runner pops as time
     # passes — the follow-up punches of a flurry, fired alternating hands faster than a normal reset.
     combo_queue: list = field(default_factory=list)
+    # ROCKED: stunned by a clean power shot — can't punch until this time, but can still defend/move.
+    rocked_until: float = 0.0
     # bookkeeping
     last_call_t: float = -999.0
     last_commit_t: float = -999.0   # last time this boxer STARTED a punch
@@ -71,6 +73,11 @@ class BoxerState:
         """Actively committing a punch (pre-impact). Recovery doesn't count — the arm is resetting and
         you're getting your breath back, so energy regens during recovery but not during the windup."""
         return self.left.state == WINDUP or self.right.state == WINDUP
+
+    def rocked(self, t: float) -> bool:
+        """Stunned by a clean power shot: offense is offline (can't punch/combo) until rocked_until,
+        though defense (guard/slip/duck/move) still works."""
+        return t < self.rocked_until
 
     def in_defense(self) -> bool:
         return self.defense is not None
