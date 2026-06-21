@@ -1,7 +1,69 @@
 # Left Off
-Date: 2026-06-17
+Date: 2026-06-20
 
-## Latest session — FIRST REAL HEALTH-KO + both-hands-punching bug fixed. Health now reaches 0 before energy.
+## Latest session — RECOVERED a dead worktree session's "landed-hit effect" work; ROCKED stun + head-hit reaction merged into the new replay format, viewer updated, fresh 60s run, PUSHED to main.
+A crashed Claude session had been doing "how a landed hit affects the boxer" on a git worktree that would no
+longer open. Reconstructed where it was from the worktree's uncommitted diff alone, finished + merged it,
+wired it to a parallel replay-format rework on main, updated the 3D viewer, ran a fresh fight, and pushed.
+
+### 1. Recovered the dead worktree → the ROCKED (stun) mechanic
+The worktree `.claude/worktrees/rock-stun` (branch `worktree-rock-stun`) had all work UNCOMMITTED + a new
+`tests/test_rock.py`. The feature: a CLEAN power shot (cross/hook/uppercut, never a jab) that crosses a
+damage tier ROCKS the defender — offense offline (can't punch/combo, his own windup + queued combo aborted)
+for a beat, defense (guard/slip/duck/move) intact. Damage-gated so stuns only emerge once someone's hurt
+(no early stun-lock). Head tiers off HEALTH dmg, body off ENERGY. `damage.rock_severity`/`rock_duration`;
+`BoxerState.rocked_until` + `rocked(t)`; enforced in `runner._apply` + dropped from the legal menu in
+`observation`. Committed it as-is on the branch first (9 tests pass).
+
+### 2. Merged into main's NEW animation-friendly replay format — the key integration
+Main had its OWN uncommitted rework (committed first): `recorder._hand` now writes the punch TIMELINE
+(`impact_t`, `recovery_end`, `strength`, `speed`) on windup/recovery, and land/whiff/avoid events carry the
+throwing `hand` + struck `target`/`attacker` name — so the JSON maps onto rigged-entity animations. Only
+`runner._impact` conflicted (both rewrote the `land` event). Resolved to carry BOTH the stun logic and
+`hand`/`target`.
+- **The non-obvious bit:** a HEAD-HIT REACTION tier (light/medium/hard) for the head
+  animations. The stun `rock` field is NOT it — `rock` is gated to power punches (a jab → `none`), but a jab
+  still SNAPS the head, so the animation needs a reaction on EVERY clean head connect. Added a SEPARATE
+  `damage.head_reaction(placement, quality, health_dmg)`: head shots only, clean/glancing only, floored to
+  `light`, tiered up by health dmg on the same thresholds. Body/blocked → `None`. Land event now carries both
+  `rock` (gameplay stun) and `reaction` (animation cue). +4 tests. All 36 pass.
+
+### 3. 3D viewer updated to consume the new fields
+`render/viewer_3d.html`: a head shot now snaps the struck figure's head back scaled by `reaction`
+(light/medium/hard) so every head connect reacts; `rock` refined to the whole-body stun reel (torso lean +
+wobble) riding under it; hits route via the explicit `target`. (Still a primitives viewer — NOT rigged
+GLTF; "rigged entities" remains a separate future viewer that this JSON now feeds.)
+
+### 4. Fresh 60s fight + push
+Cleared `replays/`, ran `b2_llm_60s` (out_boxer vs pressure, seed 42, gpt-5-nano) → `replays/sixty.json`:
+**Red wins by decision (61.6 / 51.0 hp)**, 1201 frames, 156 calls, 0 parse errors. Verified new format:
+every land carries `hand/target/rock/reaction`; 11 head reactions + 5 rocks fired, correctly paired.
+Merged the branch to main, committed the leftover stale-replay deletions, **pushed to origin/main**
+(`184abb8..33fe4f9`).
+
+### Broken / Open
+1. **All reaction/rock tiers came out `light`** this fresh run — the fight was an even DECISION (both >50 hp,
+   no big clean head shots), and the tiers are damage-gated. medium/hard reactions are UNVERIFIED live; they
+   only appear in a decisive/asymmetric fight. The viewer's medium/hard head-snap + bigger rock stagger have
+   never been seen on screen.
+2. **Viewer animations never eyeballed live** (carried, now more so) — the new head-snap + rock reel are
+   data-correct but not browser-confirmed.
+3. **Fresh 100-hp round still goes to DECISION, no KO** (loser at 51 hp). This effectively answers the prior
+   session's open #1 (global vulnerability+drain balance on a fresh round): NOT an early blowout — if
+   anything the opposite, fresh 60s still can't finish. The health-KO needs a worn state. Whether fresh
+   rounds SHOULD be finishable is the standing tension; `hurt_vulnerability_scale: 1.0` unchanged.
+4. **Lingering branches/worktree:** `worktree-rock-stun` branch + `.claude/worktrees/rock-stun` worktree and
+   the merged `fresh-60s-fight` branch still exist locally — not cleaned up.
+
+## NEXT STEP (next session)
+**Eyeball `replays/sixty.json` in `render/viewer_3d.html`** to confirm the new head-hit reactions + rock
+stagger read right on screen — then run a DECISIVE/asymmetric matchup or a KO seed so medium/hard tiers
+actually fire (this even decision only produced `light`), and watch a hard rock stagger + hard head-snap.
+If the head-snap or stun reel looks wrong, the dials are in `viewer_3d.html` (`react`/`rock` mag+dur tables)
+and `config.yaml rock:` (tiers/durations). Optional cleanup: delete the `worktree-rock-stun` +
+`fresh-60s-fight` branches and the `.claude/worktrees/rock-stun` worktree.
+
+## PRIOR session — FIRST REAL HEALTH-KO + both-hands-punching bug fixed. Health now reaches 0 before energy.
 Resumed at "eyeball viewer + no-KO finish-nudge". User had eyeballed the viewer (looked like a real fight)
 and gave 3 things: (1) still sees both hands punching at once — bug or viewer?; (2) eyeball good; (3) make
 the finish a small prompt nudge when opp is very low (~5-10 hp). Then, after seeing a round-2 still not KO,

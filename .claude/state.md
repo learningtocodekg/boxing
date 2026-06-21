@@ -191,12 +191,38 @@ errors, strategic reasoning, slips now land and decide fights).
 - **RESULT `replays/sixty_2.json`: Red wins by KO at 30.15s** — Blue health -0.1 with energy STILL 24.8;
   energy never hit 0 (0 frames, either fighter). First real health-KO. All 6 suites PASS; 0 parse errors.
 
-## NEXT: re-run a FRESH 100-hp round-1 to confirm the GLOBAL vulnerability+drain changes stay balanced
-- Verified only from a WORN round-2 state. Fresh round-1 (`sixty.json`) NOT re-run — could now blow out
-  early. If it KOs before ~45-50s, lower `hurt_vulnerability_scale` (1.0→~0.7) / trim regen toward 1.4.
-- DEFERRED: regenerate `replays/forty-five.json`; continuation→real round loop (auto-KO-stop, scorecard,
-  ceiling lift) = roadmap B4. `hurt_vulnerability_scale` is now the primary KO dial (block_factor 0.30 next).
-- NOTE: prior sessions' commits were LOCAL only — push to origin main was blocked by the auto-mode classifier.
+## DONE latest: ROCKED (stun) + HEAD-HIT REACTION merged into the new animation-friendly replay format; PUSHED to main
+- **Recovered a dead worktree session** (`worktree-rock-stun`, all uncommitted) doing "how a landed hit
+  affects the boxer." Finished + merged it. The **ROCKED mechanic**: a CLEAN power shot (cross/hook/uppercut,
+  not a jab) crossing a damage tier stuns the defender — offense offline (can't punch/combo; his own windup +
+  combo aborted) for a beat, defense intact. Damage-gated (no early stun-lock). Head tiers off HEALTH dmg,
+  body off ENERGY. `damage.rock_severity`/`rock_duration`; `BoxerState.rocked_until`+`rocked(t)`; enforced in
+  `runner._apply` + dropped from the legal menu in `observation`. `tests/test_rock.py`.
+- **New replay format (was uncommitted on main):** `recorder._hand` writes the punch TIMELINE (`impact_t`,
+  `recovery_end`, `strength`, `speed`) on windup/recovery; land/whiff/avoid events carry the throwing `hand`
+  + struck `target`/`attacker` — so the JSON maps onto rigged-entity animations. Only `runner._impact`
+  conflicted; resolved to keep BOTH stun logic and hand/target.
+- **HEAD-HIT REACTION tier (the ask), DISTINCT from the stun:** `rock` is gated to power punches
+  (jab→`none`), but a jab still snaps the head, so the animation cue must fire on EVERY clean head connect.
+  New `damage.head_reaction(placement, quality, health_dmg)` — head + clean/glancing only, floored to `light`,
+  tiered up by health dmg. Land event now carries `rock` (stun) AND `reaction` (animation). All 36 tests pass.
+- **Viewer (`render/viewer_3d.html`):** head snaps back scaled by `reaction` (every head connect reacts);
+  `rock` refined to the whole-body stun reel (torso lean + wobble) under it; hits route via `target`. Still a
+  primitives viewer (NOT rigged GLTF — "rigged entities" is a separate future viewer this JSON feeds).
+- **Fresh 60s run:** cleared `replays/`, ran `b2_llm_60s` (seed 42, gpt-5-nano) → `sixty.json`: Red dec
+  61.6/51.0, 1201 frames, 0 parse errors; verified 11 head reactions + 5 rocks fired, all `light` (even
+  decision = no big clean shots; tiers are damage-gated). **Pushed to origin/main** (`184abb8..33fe4f9`) —
+  prior sessions' local-only commits are now upstream too.
+
+## NEXT: eyeball the new viewer animations + exercise medium/hard tiers
+- All reaction/rock tiers came out `light` in the even-decision fresh run; medium/hard are UNVERIFIED live.
+  Eyeball `sixty.json` in `viewer_3d.html` (head-snap + rock reel read right?), then run a decisive/asymmetric
+  matchup or KO seed to fire medium/hard. Dials: `viewer_3d.html` react/rock mag+dur tables, `config.yaml rock:`.
+- Fresh 100-hp round still goes to DECISION (loser 51 hp) — answers the prior open #1 (global balance): NOT a
+  blowout, the opposite. Health-KO needs a worn state; `hurt_vulnerability_scale: 1.0` unchanged.
+- DEFERRED: regenerate `replays/forty-five.json` (deleted this session — only `sixty.json` remains);
+  continuation→real round loop (auto-KO-stop, scorecard, ceiling lift) = roadmap B4. Clean up the lingering
+  `worktree-rock-stun` / `fresh-60s-fight` branches + worktree.
 
 ## What exists
 - `PRD.md` — full design (long). Source of truth for mechanics.

@@ -504,3 +504,42 @@ cheaper move was to let a scenario *preset* health/energy directly and simulate 
 single fresh run. It made the test a one-round experiment with hand-picked stats (deliberately giving the
 higher-health fighter *less* energy, to check the vulnerability coupling drove the KO rather than the health
 gap), and it's the seed of proper scenario fixtures for balance work.
+
+## Observations (B3, a landed-hit effect across two parallel reworks — and where "stun" and "reaction" diverge)
+
+**A crashed agent's work was fully recoverable from a git worktree's uncommitted diff.** A previous Claude
+session had been building "how a landed hit affects the boxer" on an isolated worktree, then died and
+wouldn't reopen. Nothing was committed — but the worktree's working tree still held the entire feature plus
+a new test file. The whole state was reconstructable from `git diff` alone: the mechanic, the config block,
+the prompt edits, the test. Worktree isolation, which exists to keep parallel work from colliding, doubled
+as a crash-recovery buffer. The practical lesson for multi-session agent work: an uncommitted worktree is
+not lost work, it's just unstaged — read the diff before assuming a dead session set you back to zero.
+
+**The gameplay "stun" tier and the animation "reaction" tier look identical and are not the same thing.**
+The recovered feature classified a landed shot into light/medium/hard and used it for a *stun* (offense goes
+offline for a beat). In parallel, the main branch had reworked the replay JSON to drive rigged-entity
+animations, and the ask was a head-hit-reaction tier — light/medium/hard — for the head-snap clips. The
+obvious move is to reuse the one field: both are light/medium/hard, both come off the same hit. That would
+have been wrong. The stun is deliberately *gated to power punches* — a jab must never disable someone's
+offense — so a jab returns `none`. But a jab to the head still snaps the head; the *animation* must fire on
+every clean head connect, floored to light. So the two tiers share thresholds yet diverge exactly at the
+cheap-but-real hits: same shape, different gate. We kept them as separate fields (`rock` for the stun,
+`reaction` for the animation), and the viewer composes them — `reaction` snaps the head on every head shot,
+`rock` adds a whole-body reel only when it's a real stun. Lesson: when a gameplay signal and a presentation
+signal happen to share a scale, check their *edges* (what each must do at the boundary) before collapsing
+them — the boundary is where they turn out to be different concerns.
+
+**`git add <one-file>` after a bulk delete silently leaves the deletions out of the commit.** Clearing the
+replays folder was `rm replays/*` then a commit — but the commit only ran `git add replays/sixty.json` (the
+regenerated file), so the *deletions* of the other replays were never staged. The commit looked clean and
+the working directory looked right (`ls` showed one file), yet `git ls-files` still tracked the deleted
+ones: the repo and the disk disagreed. It only surfaced on the next merge. The tell is that `ls` shows the
+working tree while `git ls-files` shows what's committed; after a bulk `rm` followed by a narrow `git add`,
+those two can quietly disagree. Verify a "delete everything here" with `git ls-files <dir>`, not with `ls`.
+
+**A damage-gated animation only exercises its high tiers in a decisive fight.** The fresh 60-second round
+came out an even decision (both fighters above half health, no big clean shots landed), and *every* reaction
+and rock tier resolved to `light`. That's not a bug — the tiers are gated on damage, and a cagey points
+fight never produces the damage for a medium or hard one. But it means a balanced matchup is the worst case
+for *seeing* your high-tier animations: to verify the medium/hard head-snaps and the hard stun reel you have
+to deliberately stage a lopsided or finishing fight, because the "good," competitive fight hides them.

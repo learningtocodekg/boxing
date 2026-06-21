@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# git worktrees created by Claude Code sessions
+.claude/worktrees/
