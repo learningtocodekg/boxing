@@ -250,6 +250,26 @@ function gloveLocal(state, placement, side) {
   return new THREE.Vector3(side*0.22, chinY, 0.55);
 }
 
+// Animated glove target: instead of snapping between discrete poses, thrust the arm out using the
+// punch's own timeline (`impact_t`/`recovery_end`). During windup the glove snaps from cocked-back to
+// fully extended over the final THRUST seconds, reaching the target exactly at impact; during recovery
+// it retracts back toward the guard. This makes every punch a smooth thrust — and crucially shows the
+// finishing KO punch, whose replay ends mid-windup (no `recovery` frame is ever recorded). Old replays
+// without a timeline fall back to the discrete pose.
+const THRUST = 0.18;   // arm extends over the final 0.18s of the windup
+function gloveTarget(h, side) {
+  const placement = h.placement || 'head_center';
+  if (h.state === 'windup' && h.impact_t != null) {
+    const p = Math.max(0, Math.min(1, (t - (h.impact_t - THRUST)) / THRUST));
+    return gloveLocal('windup', placement, side).lerp(gloveLocal('recovery', placement, side), p);
+  }
+  if (h.state === 'recovery' && h.impact_t != null && h.recovery_end != null) {
+    const p = Math.max(0, Math.min(1, (t - h.impact_t) / Math.max(1e-3, h.recovery_end - h.impact_t)));
+    return gloveLocal('recovery', placement, side).lerp(gloveLocal('guard', placement, side), p);
+  }
+  return gloveLocal(h.state, placement, side);
+}
+
 // ---------- replay state ----------
 let DATA=null, FRAMES=[], DT=0.05, N=0;
 let t=0, playing=true, speed=1.0;
@@ -323,12 +343,13 @@ function applyBoxer(grp, prev, cur, s, opp) {
   let hit = false;
   for (const [key, arm, side] of hands) {
     const h = cur[key];
-    const local = gloveLocal(h.state, h.placement || 'head_center', side);
+    const local = gloveTarget(h, side);
     const sh = new THREE.Vector3(side*u.SH_Z, u.SH_Y, 0.05);
     spanCylinder(arm.arm, sh, local);
     arm.glove.position.copy(local);
-    // colour the glove if it's a live punch
-    const live = h.state === 'recovery';
+    // colour the glove if it's a live punch — extended in recovery, or thrusting out late in windup
+    const live = h.state === 'recovery' ||
+                 (h.state === 'windup' && h.impact_t != null && t >= h.impact_t - THRUST);
     arm.glove.material.color.set(live ? 0xffe06a : grp===red ? 0xd24646 : 0x4a78dc);
   }
 }
