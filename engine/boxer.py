@@ -79,6 +79,12 @@ class BoxerState:
         though defense (guard/slip/duck/move) still works."""
         return t < self.rocked_until
 
+    def ducking(self) -> bool:
+        """A duck is a quick standalone dodge: while it's still resolving offense is offline (can't
+        punch) — you bob and you're right back up, not crouched and trading. Defense (cover/move) stays.
+        Cleared by the runner when the duck window ends; then you're back up and free to punch again."""
+        return self.defense == "duck"
+
     def in_defense(self) -> bool:
         return self.defense is not None
 

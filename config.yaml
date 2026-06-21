@@ -166,8 +166,8 @@ timing:                           # phase durations (s); scaled by speed/strengt
   recovery: {jab: 0.76, cross: 1.10, hook: 1.40, uppercut: 1.56}
   slip_duration: 0.36
   slip_recovery: 0.24
-  duck_duration: 0.44
-  duck_recovery: 0.30
+  duck_duration: 0.30          # a duck is a QUICK dodge: bob down...
+  duck_recovery: 0.14          # ...and right back up (snappy reset, not a held crouch)
   speed_windup_scale: 0.6        # windup *= lerp(1.0 .. this) as speed 0->10
   strength_recovery_scale: 1.4   # recovery *= lerp(1.0 .. this) as strength 0->10 (committed = slow reset)
   speed_recovery_scale: 0.85     # recovery *= lerp(1.0 .. this) as speed 0->10 (snappy hand resets quicker;

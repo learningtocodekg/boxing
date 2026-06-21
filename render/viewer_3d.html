@@ -281,10 +281,10 @@ function applyBoxer(grp, prev, cur, s, opp) {
   const face = new THREE.Vector3(opp.pos[0]-px, 0, opp.pos[1]-py);
   if (face.lengthSq() > 1e-5) grp.rotation.y = Math.atan2(face.x, face.z);
 
-  // defense: duck lowers, slip shifts head
+  // defense: duck is a quick dip (bob down + right back up, NOT a held crouch), slip shifts head
   const def = cur.defense;
   let crouch = 0, headShift = 0;
-  if (def === 'duck') crouch = 0.9;
+  if (def === 'duck') crouch = 0.45;
   else if (def === 'slip_left') headShift = -0.45;
   else if (def === 'slip_right') headShift = 0.45;
   grp.position.y = -crouch;

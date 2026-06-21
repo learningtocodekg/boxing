@@ -247,10 +247,11 @@ def _apply(b: B.BoxerState, opp: B.BoxerState, action: dict, t: float, fight: Fi
             elif kind == "punch":
                 # One hand punches at a time: while the OTHER hand is throwing/recovering (or one was
                 # already thrown this step), this hand holds guard instead — a boxer snaps a punch back
-                # to guard before throwing with the other hand, never both at once. A ROCKED fighter can't
-                # throw at all (offense offline) — he covers up.
+                # to guard before throwing with the other hand, never both at once. A ROCKED fighter, or
+                # one still in a DUCK (a quick dodge is standalone — no punching until he's back up),
+                # can't throw at all (offense offline) — he covers up.
                 other = b.right if hand is b.left else b.left
-                if b.rocked(t) or threw or other.busy():
+                if b.rocked(t) or b.ducking() or threw or other.busy():
                     hand.state = GUARD
                     continue
                 if not _launch_punch(b, hand, ha["punch_type"], ha["placement"],

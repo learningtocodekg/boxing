@@ -39,13 +39,14 @@ def _max_affordable_strength(energy: float) -> int:
 
 
 def _hand_legal(hand: B.Hand, other: B.Hand, types_in_range: list[str], max_strength: int,
-                rocked: bool = False):
+                rocked: bool = False, ducking: bool = False):
     if hand.locked():
         return "LOCKED"
     opts = ["guard", "free"]
-    # Only one hand throws at a time — no punch offered while the other hand is mid-punch/recovering, or
-    # while you're ROCKED (stunned: offense is offline, you can only cover and move).
-    if types_in_range and max_strength >= 1 and not other.busy() and not rocked:
+    # Only one hand throws at a time — no punch offered while the other hand is mid-punch/recovering, while
+    # you're ROCKED (stunned: offense offline), or while you're still DUCKING (a quick dodge is standalone —
+    # no punch until you're back up). In all of these you can only cover and move.
+    if types_in_range and max_strength >= 1 and not other.busy() and not rocked and not ducking:
         opts.append("punch")
     return opts
 
@@ -134,6 +135,7 @@ def build_context(self_b: B.BoxerState, opp: B.BoxerState, t: float, round_secon
     legal_steps = ring.legal_steps(self_b.pos, opp.pos, ring.step_distance(self_b.attrs.get("agility", 75)))
     can_defend = not self_b.in_defense()
     rocked = self_b.rocked(t)
+    ducking = self_b.ducking()
 
     return {
         "t": t,
@@ -161,8 +163,8 @@ def build_context(self_b: B.BoxerState, opp: B.BoxerState, t: float, round_secon
         "range": {"dist": dist, "band": ring.range_band(dist)},
         "incoming": incoming,   # {punch_type, placement, can_react: "slip/block only" | "slip or counter"} or None
         "legal": {
-            "left_hand": _hand_legal(self_b.left, self_b.right, tir, max_s, rocked),
-            "right_hand": _hand_legal(self_b.right, self_b.left, tir, max_s, rocked),
+            "left_hand": _hand_legal(self_b.left, self_b.right, tir, max_s, rocked, ducking),
+            "right_hand": _hand_legal(self_b.right, self_b.left, tir, max_s, rocked, ducking),
             "footwork": legal_steps,
             "defense": ["slip_left", "slip_right", "duck"] if can_defend else [],
             "types_in_range": tir,
