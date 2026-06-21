@@ -296,15 +296,24 @@ function applyBoxer(grp, prev, cur, s, opp) {
   u.torso.rotation.x = punching ? -0.18 : 0;
   u.head.position.z = punching ? 0.25 : 0;
 
-  // ROCKED: stagger — head snaps back + torso leans away + a sideways wobble, decaying over the stun.
+  // HEAD-HIT REACTION: every clean head shot snaps the head back, scaled by tier (light/medium/hard) —
+  // a quick jab snap through to a hard rock. Driven by the land event's `reaction` cue.
+  const rx = u.react;
+  if (rx) {
+    const age = (performance.now() - rx.born) / rx.dur;
+    if (age >= 1) { u.react = null; }
+    else { u.head.position.z -= rx.mag * (1 - age); }   // snap back (local -z = away from opponent), decays
+  }
+
+  // ROCKED: a stun reels the whole frame — torso leans off balance + a sideways wobble, over the longer
+  // stun (the head-snap itself rides on `reaction` above). Driven by the land event's `rock` cue.
   const rk = u.rock;
   if (rk) {
     const age = (performance.now() - rk.born) / rk.dur;
     if (age >= 1) { u.rock = null; }
     else {
       const e = 1 - age;                       // decays to 0 as he recovers
-      u.torso.rotation.x += rk.mag * e;        // lean back
-      u.head.position.z -= rk.mag * 0.6 * e;   // head snaps back (local -z = away from opponent)
+      u.torso.rotation.x += rk.mag * e;        // lean back, off balance
       u.head.position.x += rk.wob * e;         // sideways wobble (added to any slip shift)
     }
   }
@@ -346,11 +355,17 @@ function fireEvents(fi, cur) {
   lastEventFrame = fi;
   for (const ev of (cur.events||[])) {
     if (ev.kind !== 'land') continue;
-    // struck boxer is the opponent of ev.by
-    const byRed = ev.by === FRAMES[0].red.name;
-    const struck = byRed ? blue : red;
+    // the struck fighter is the land event's `target` (falls back to "the other guy" for old replays)
+    const struck = ev.target ? (ev.target === FRAMES[0].red.name ? red : blue)
+                             : (ev.by === FRAMES[0].red.name ? blue : red);
     spawnFlash(struck, ev);
-    // ROCKED: a clean power shot stuns him — the figure snaps back / staggers, scaled by tier.
+    // HEAD-HIT REACTION: a clean head shot snaps his head back, scaled by tier (light/medium/hard).
+    if (ev.reaction) {
+      const mag = { light:0.18, medium:0.34, hard:0.5 }[ev.reaction];
+      const dur = { light:220,  medium:320, hard:430 }[ev.reaction];
+      struck.userData.react = { born: performance.now(), mag, dur };
+    }
+    // ROCKED: a clean power shot stuns him — the whole frame reels/staggers, scaled by tier.
     if (ev.rock && ev.rock !== 'none') {
       const mag = { light:0.25, medium:0.5, hard:0.85 }[ev.rock];
       const dur = { light:350,  medium:550, hard:800  }[ev.rock];
