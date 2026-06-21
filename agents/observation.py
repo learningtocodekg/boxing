@@ -38,12 +38,14 @@ def _max_affordable_strength(energy: float) -> int:
     return 0
 
 
-def _hand_legal(hand: B.Hand, other: B.Hand, types_in_range: list[str], max_strength: int):
+def _hand_legal(hand: B.Hand, other: B.Hand, types_in_range: list[str], max_strength: int,
+                rocked: bool = False):
     if hand.locked():
         return "LOCKED"
     opts = ["guard", "free"]
-    # Only one hand throws at a time — no punch offered while the other hand is mid-punch/recovering.
-    if types_in_range and max_strength >= 1 and not other.busy():
+    # Only one hand throws at a time — no punch offered while the other hand is mid-punch/recovering, or
+    # while you're ROCKED (stunned: offense is offline, you can only cover and move).
+    if types_in_range and max_strength >= 1 and not other.busy() and not rocked:
         opts.append("punch")
     return opts
 
@@ -131,6 +133,7 @@ def build_context(self_b: B.BoxerState, opp: B.BoxerState, t: float, round_secon
     max_s = _max_affordable_strength(self_b.energy)
     legal_steps = ring.legal_steps(self_b.pos, opp.pos, ring.step_distance(self_b.attrs.get("agility", 75)))
     can_defend = not self_b.in_defense()
+    rocked = self_b.rocked(t)
 
     return {
         "t": t,
@@ -145,6 +148,7 @@ def build_context(self_b: B.BoxerState, opp: B.BoxerState, t: float, round_secon
             "left_status": _hand_status(self_b.left, t),
             "right_status": _hand_status(self_b.right, t),
             "cornered": ring.cornered(self_b.pos),
+            "rocked": rocked,
         },
         "opponent": {
             "name": opp.name,
@@ -157,8 +161,8 @@ def build_context(self_b: B.BoxerState, opp: B.BoxerState, t: float, round_secon
         "range": {"dist": dist, "band": ring.range_band(dist)},
         "incoming": incoming,   # {punch_type, placement, can_react: "slip/block only" | "slip or counter"} or None
         "legal": {
-            "left_hand": _hand_legal(self_b.left, self_b.right, tir, max_s),
-            "right_hand": _hand_legal(self_b.right, self_b.left, tir, max_s),
+            "left_hand": _hand_legal(self_b.left, self_b.right, tir, max_s, rocked),
+            "right_hand": _hand_legal(self_b.right, self_b.left, tir, max_s, rocked),
             "footwork": legal_steps,
             "defense": ["slip_left", "slip_right", "duck"] if can_defend else [],
             "types_in_range": tir,
@@ -190,6 +194,9 @@ def render_observation(ctx: dict) -> str:
     L.append(f"YOU ({s['name']}):")
     ratchet = " You've spent past your reserves - you won't fully get this energy back this round." if s["ratcheted"] else ""
     L.append(f"  Condition: {_vitals(s)}.{ratchet}")
+    if s.get("rocked"):
+        L.append("  *** ROCKED — that shot stunned you. You CANNOT throw for a moment; your head clears in "
+                 "a beat. Survive it: tighten the guard, slip, or move off — DON'T trade. ***")
     L.append(f"  Left hand:  {s['left_status']}.")
     L.append(f"  Right hand: {s['right_status']}.")
     if s["cornered"]:

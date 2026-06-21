@@ -296,6 +296,19 @@ function applyBoxer(grp, prev, cur, s, opp) {
   u.torso.rotation.x = punching ? -0.18 : 0;
   u.head.position.z = punching ? 0.25 : 0;
 
+  // ROCKED: stagger — head snaps back + torso leans away + a sideways wobble, decaying over the stun.
+  const rk = u.rock;
+  if (rk) {
+    const age = (performance.now() - rk.born) / rk.dur;
+    if (age >= 1) { u.rock = null; }
+    else {
+      const e = 1 - age;                       // decays to 0 as he recovers
+      u.torso.rotation.x += rk.mag * e;        // lean back
+      u.head.position.z -= rk.mag * 0.6 * e;   // head snaps back (local -z = away from opponent)
+      u.head.position.x += rk.wob * e;         // sideways wobble (added to any slip shift)
+    }
+  }
+
   // arms
   const hands = [['left', u.armL, -1], ['right', u.armR, +1]];
   let hit = false;
@@ -335,7 +348,15 @@ function fireEvents(fi, cur) {
     if (ev.kind !== 'land') continue;
     // struck boxer is the opponent of ev.by
     const byRed = ev.by === FRAMES[0].red.name;
-    spawnFlash(byRed ? blue : red, ev);
+    const struck = byRed ? blue : red;
+    spawnFlash(struck, ev);
+    // ROCKED: a clean power shot stuns him — the figure snaps back / staggers, scaled by tier.
+    if (ev.rock && ev.rock !== 'none') {
+      const mag = { light:0.25, medium:0.5, hard:0.85 }[ev.rock];
+      const dur = { light:350,  medium:550, hard:800  }[ev.rock];
+      struck.userData.rock = { born: performance.now(), mag, dur,
+                               wob: (Math.random()<0.5?-1:1) * mag * 0.5 };
+    }
   }
 }
 

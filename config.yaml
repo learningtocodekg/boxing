@@ -121,6 +121,21 @@ health:
                                  # and "0 energy" reads as "been getting rocked", not the cause of the KO.
                                  # Health-only: body shots still drain energy at the flat rate.
 
+rock:                             # getting STUNNED by a real shot (PRD: takes-a-hit reaction)
+  enable: true
+  # Only a CLEAN (unblocked, unslipped) POWER shot — cross/hook/uppercut, never a jab — can rock the
+  # defender. The shot must cross a damage tier, so a FRESH fighter shrugs shots off and only a hurt/tired
+  # one (whose damage is amplified by hurt_vulnerability) gets rocked: stuns emerge late, never an early
+  # stun-lock. While rocked a fighter CANNOT punch or throw a combo (offense disabled, his own windup +
+  # pending combo are aborted) but CAN still guard / slip / duck / move (defense fully intact). Head shots
+  # are tiered by the HEALTH damage dealt; body shots by the ENERGY damage they deal (a body shot rocks
+  # too — just needs a real dig). The tier (light/medium/hard) is written into the land event for the
+  # animation. Stun duration scales with the tier and is a bit shorter to the body.
+  head_dmg: {light: 3.0, medium: 6.0, hard: 10.0}   # clean head-shot HEALTH-damage tiers
+  body_dmg: {light: 3.0, medium: 5.0, hard: 7.0}    # clean body-shot ENERGY-damage tiers
+  duration: {light: 0.30, medium: 0.50, hard: 0.80} # stun seconds by tier (head); ~half-a-second band
+  body_duration_scale: 0.8       # a body rock of the same tier lasts a bit less than a head rock
+
 reach:                            # feet, by punch type
   jab: 3.2
   cross: 2.8
