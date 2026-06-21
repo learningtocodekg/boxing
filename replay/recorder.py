@@ -9,6 +9,15 @@ def _hand(h: B.Hand) -> dict:
     d = {"state": h.state}
     if h.state in (B.WINDUP, B.RECOVERY) or h.punch_type:
         d.update(punch_type=h.punch_type, placement=h.placement)
+    if h.state in (B.WINDUP, B.RECOVERY):
+        # Punch timeline + magnitude so the viewer can schedule windup->impact->recovery directly
+        # and scale the swing, instead of inferring contact from frame-to-frame state flips.
+        d.update(
+            impact_t=round(h.impact_t, 3),
+            recovery_end=round(h.recovery_end, 3),
+            strength=round(h.strength, 2),
+            speed=round(h.speed, 2),
+        )
     return d
 
 

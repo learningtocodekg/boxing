@@ -93,15 +93,17 @@ def _resolve_impacts(red: B.BoxerState, blue: B.BoxerState, t: float, rng, fight
 def _impact(atk, dfn, hand, t, rng, fight, rec):
     dist = ring.distance(atk.pos, dfn.pos)
     pt, pl = hand.punch_type, hand.placement
+    hand_name = "left" if hand is atk.left else "right"
     lq = ring.land_quality(dist, pt, pl, atk.attrs.get("reach", 75),
                            atk.attrs.get("height", 75), dfn.attrs.get("height", 75))
     if lq == 0.0:
-        rec.event(t, "whiff", {"by": atk.name, "punch": pt, "reason": "out_of_range"})
+        rec.event(t, "whiff", {"by": atk.name, "hand": hand_name, "punch": pt, "reason": "out_of_range"})
         atk.last_action_desc = f"missed a {pt} (out of range)"
         return
     if (dfn.defense and dfn.defense_effective_t <= t <= dfn.defense_active_until
             and _avoids(dfn.defense, pt, pl)):
-        rec.event(t, "avoid", {"by": dfn.name, "via": dfn.defense, "punch": pt})
+        rec.event(t, "avoid", {"by": dfn.name, "via": dfn.defense,
+                               "attacker": atk.name, "hand": hand_name, "punch": pt})
         dfn.last_action_desc = f"{dfn.defense.replace('_', ' ')}d a {pt}"
         atk.last_action_desc = f"missed a {pt} (slipped)"
         return
@@ -120,7 +122,8 @@ def _impact(atk, dfn, hand, t, rng, fight, rec):
     # stop it, so it reads "clean", not "blocked" (matches the observation's "sagging" read).
     sagging_leak = blocked and not pl.startswith("body") and dfn.energy < _OBS["guard_sags_below_energy"]
     tag = ("glancing" if lq < 1.0 else "clean") if (not blocked or sagging_leak) else "blocked"
-    rec.event(t, "land", {"by": atk.name, "punch": pt, "placement": pl, "quality": tag,
+    rec.event(t, "land", {"by": atk.name, "hand": hand_name, "target": dfn.name,
+                          "punch": pt, "placement": pl, "quality": tag,
                           "health_dmg": round(hd, 2), "energy_dmg": round(ed, 2)})
     atk.last_action_desc = f"landed a {pt} to your {pl.replace('_', ' ')}"
 
