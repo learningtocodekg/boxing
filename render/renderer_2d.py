@@ -52,7 +52,7 @@ class Viewer:
         self.show_reason = True
         pygame.init()
         self.screen = pygame.display.set_mode((W, H))
-        pygame.display.set_caption("Glass Joe Minds - 2D")
+        pygame.display.set_caption("LLM WWE - 2D")
         self.clock = pygame.time.Clock()
         self.f_big = pygame.font.SysFont("consolas", 22)
         self.f = pygame.font.SysFont("consolas", 16)

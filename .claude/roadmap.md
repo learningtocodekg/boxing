@@ -1,4 +1,4 @@
-# Roadmap — Glass Joe Minds (LLM Boxing)
+# Roadmap — LLM WWE (LLM Boxing)
 Phase B — 3D 1v1, both boxers LLM-controlled
   B1 One LLM boxer vs scripted/mock opponent — prove every move fires + renders (no API needed for mock)
   B2 LLM vs LLM, 15-second rounds — confirm sane interaction, trades, blocks, gas-out, KO  ← first watchable target

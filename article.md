@@ -1,7 +1,7 @@
 # LLM Boxing Agents — What We Had to Add (and Why)
 
 Notes for an article. Tracks every scaffold/design decision made to get nano-class models to box
-believably with only a fixed controller-style menu. Sibling of the football article — same thesis:
+believably with only a fixed controller-style menu. Same thesis as the football sim that preceded it:
 **physics owns the body, the LLM only picks intent from a feature-enriched menu.**
 
 ---
@@ -35,7 +35,7 @@ punch telegraphs (windup, which the opponent can see and which is cancel-able in
 strikes for one tick (impact), then locks the hand with no guard (recovery). High strength buys
 damage but lengthens recovery — the exposure window *is* the cost of headhunting.
 
-**Energy cost curve fit to human anchors.** The user gave three intuition points (10str/10spd->3,
+**Energy cost curve fit to human anchors.** We started from three intuition points (10str/10spd->3,
 10str/1spd->1, 1str/10spd->0.5). Rather than guess a formula we solved a 3-term model
 `0.78*(s/10)+0.22*(s? )...` — strength*speed cross-term dominates, so cranking both is punishingly
 expensive while a fast soft jab is nearly free. Lets the model learn to pick its spots.
@@ -208,7 +208,7 @@ emptied his tank throwing a punch and got countered clean while spent. Lesson: w
 promises a consequence, the mechanic must trigger on the *same boundary* the read uses — and a KO gate
 on a self-restoring quantity needs a band, never an equality.
 
-**Slowing punches for watchability silently un-did the decisiveness work.** A previous agent lengthened
+**Slowing punches for watchability silently un-did the decisiveness work.** An earlier pass lengthened
 windup/recovery so a human could see each punch land (recovery jab .15→.38s, up to .78s for an
 uppercut). It worked visually, but longer recovery means fewer punches per second, which means fewer
 exchanges, which means less accumulated damage: the same 15s fight ended at health 80/83 (vs 60/66) and
@@ -360,14 +360,14 @@ rounds longer" change can dissolve the very mechanic the project was built aroun
 through a rate that doesn't participate in the rescaling. We shipped it unchanged on purpose (no
 speculative tuning without a real fight to measure) but flagged it as the first thing to watch.
 
-**When the user hands you exact numbers for the model to "know," the band-language principle still wins.**
+**When you have exact numbers you want the model to "know," the band-language principle still wins.**
 The ask was "the LLMs should know they get +10 energy and +5 health between rounds." The locked design is
 that the system prompt never exposes raw thresholds — the model reasons in phrases, not integers. Putting
 "+10/+5" in the prompt would be the first numeric leak and wouldn't even help: 10 out of a tank that
 ratchets down has no meaning in band-space. So the knowledge went in qualitatively — "a corner rest gives
 back a good chunk of your wind and a little of your health" — which conveys both the asymmetry (more
 energy than health) and the strategic point (don't hoard at the bell) without breaking the abstraction.
-The user's numbers belong in the *mechanic* (the runner's carry math), not the *prompt*.
+Those numbers belong in the *mechanic* (the runner's carry math), not the *prompt*.
 
 ## Observations (B3, fighter asymmetry — the draw breaks but the model won't box)
 
@@ -452,13 +452,13 @@ not the paragraph.
 whole feature.** The fight had good *gaps* but no *bursts*: every exchange was one punch, then a full
 recovery, then a re-poll — structurally one-offs, because a hand can't throw again until it resets and the
 other hand is pinned to guard while it's busy (a rule added earlier to stop both fists firing at once). The
-question was whether to add a second "short-term energy" resource (the user's own first guess) or something
+question was whether to add a second "short-term energy" resource (the obvious first guess) or something
 simpler. The simpler thing won: a combo is a single decision that schedules 2-3 follow-up punches which
 *force-fire on the alternating hand even while the previous hand is still recovering* — overriding exactly
 the reset that was serializing everything. That one override is the entire mechanic; no second resource, no
 new bar. It also turned out to be token-*cheaper* than the status quo, because one LLM call now buys a whole
 flurry instead of one punch — calls stayed flat (80 vs 78) while punches thrown rose ~60%. And it produced
-the rhythm the user wanted on the first run: measure, measure, then a three-punch jab-cross-hook, with the
+the rhythm we were after on the first run: measure, measure, then a three-punch jab-cross-hook, with the
 model reasoning about it explicitly ("jab to measure, then drive the cross while he's recovering, then the
 hook"). Worth noting what *didn't* need touching: the renderer reads hand states per frame, so rapid
 alternating windups animate as a flurry for free — the feature was visible without a single line of viewer
@@ -468,7 +468,7 @@ the asymmetry finally expressing itself as *style* rather than just a damage-lea
 
 ## Observations (B3, the first real KO — and why "both hands punching" was the combo's fault)
 
-**The combo feature that flipped the fight also quietly broke the one-hand-at-a-time rule.** A user
+**The combo feature that flipped the fight also quietly broke the one-hand-at-a-time rule.** A
 watching the 3D viewer reported still seeing both fists out punching — and wasn't sure if it was a render
 glitch or a real bug. It was real, and it was the combo override eating its own invariant. The combo fires
 follow-ups a fixed `combo_interval` (0.25s) after the lead, but a power punch's *windup* is longer than
@@ -485,7 +485,7 @@ that timing rule was silently enforcing.
 never landed, and the recurring symptom was exhaustion lockstep: by the time a fighter was hurt enough to
 finish, *both* fighters were pinned at ~0 energy — and at 0 energy you can't throw the finishing combo (it
 can't afford the next punch) and your punches are capped at 0.6 power. So the "spend everything on the
-finish" prompt nudge was physically impossible to obey. The user's diagnosis was sharper than ours and
+finish" prompt nudge was physically impossible to obey. That diagnosis was sharper than the metrics and
 reframed the whole thing: *energy should never reach zero before health.* In real boxing 0 energy isn't a
 state you fight in — you reach it because you've been getting hit, and the hits, not the gas, end it. That
 inverts the causality we'd built: we had energy as an independent resource that bottomed out on its own
@@ -507,12 +507,12 @@ gap), and it's the seed of proper scenario fixtures for balance work.
 
 ## Observations (B3, a landed-hit effect across two parallel reworks — and where "stun" and "reaction" diverge)
 
-**A crashed agent's work was fully recoverable from a git worktree's uncommitted diff.** A previous Claude
+**A crashed session's work was fully recoverable from a git worktree's uncommitted diff.** An earlier
 session had been building "how a landed hit affects the boxer" on an isolated worktree, then died and
 wouldn't reopen. Nothing was committed — but the worktree's working tree still held the entire feature plus
 a new test file. The whole state was reconstructable from `git diff` alone: the mechanic, the config block,
 the prompt edits, the test. Worktree isolation, which exists to keep parallel work from colliding, doubled
-as a crash-recovery buffer. The practical lesson for multi-session agent work: an uncommitted worktree is
+as a crash-recovery buffer. The practical lesson: an uncommitted worktree is
 not lost work, it's just unstaged — read the diff before assuming a dead session set you back to zero.
 
 **The gameplay "stun" tier and the animation "reaction" tier look identical and are not the same thing.**

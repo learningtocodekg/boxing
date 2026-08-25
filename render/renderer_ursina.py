@@ -2,7 +2,7 @@
 to the actual target (head/body, left/right) on a punch, so the action is readable — in a 16x16 ring,
 with health/energy bars, the round clock, a KO banner, and a floating reasoning overlay per fighter.
 
-  python -m render.renderer_ursina replays/B2_LLM_vs_LLM_smoke_42.json
+  python -m render.renderer_ursina replays/sixty.json
 
 Controls: SPACE play/pause · LEFT/RIGHT step · R reasoning · +/- speed
           1 side view · 2 corner/3-4 angle · 3 top · [ / ] zoom · Q/Esc quit
@@ -249,7 +249,7 @@ def main():
     global _V, _APP
     path = sys.argv[1] if len(sys.argv) > 1 else "replays/test_mock.json"
     _APP = Ursina()
-    window.title = "Glass Joe Minds"
+    window.title = "LLM WWE"
     _V = Viewer(path)
     _set_cam("1")           # default: ringside side view
     _V.render()

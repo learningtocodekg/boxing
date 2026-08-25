@@ -1,5 +1,5 @@
-# Glass Joe Minds — central tunable config. Injected into engine + agents.
-# First-pass values (delegated by user); tune against B2 fights. See PRD.md §13.
+# LLM WWE — central tunable config. Injected into engine + agents.
+# First-pass values; tune against B2 fights. See PRD.md §13.
 
 observation:
   vitals_display: exact          # "exact" (raw health/energy out of 100) | "bands" (deterministic word read)

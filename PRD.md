@@ -1,4 +1,4 @@
-# Glass Joe Minds — LLM Agents Box
+# LLM WWE — LLM Agents Box
 
 A 3D boxing simulator where **both boxers are controlled by LLM agents**. Each agent reads the
 fight as structured text, reasons in boxing terms, and at each *decision step* picks **one action
@@ -6,12 +6,12 @@ per hand plus optional footwork** from a fixed menu. A deterministic physics/tim
 that intent into motion, contact, damage, and energy drain. The LLM never does geometry or math —
 it is handed the full scenario and a list of legal moves and simply chooses.
 
-This is the boxing sibling of an earlier football sim and reuses its stack and its core
-design philosophy. Read that project's `README.md` for the engineering lineage.
+This is the boxing entry in a series of LLM-agent sports sims, and reuses the stack and core design
+philosophy of an earlier American-football project of mine.
 
 ---
 
-## 1. Design Pillars (carried over from football)
+## 1. Design Pillars (carried over from the football sim)
 
 1. **Physics controls the body; the LLM controls intent.** The model never computes angles, reach,
    reaction windows, or damage. It picks from a feature-enriched menu of *legal* moves.
@@ -25,13 +25,13 @@ design philosophy. Read that project's `README.md` for the engineering lineage.
    work — timeless), one user message per decision step (the live scenario + legal moves).
 5. **Clip-worthy 3D replay is the deliverable.** Ursina viewer, two primitive boxers, floating
    reasoning text per fighter. Everything serializes to a replay JSON that the viewer reads.
-6. **Dual provider.** `gpt-5-nano` (OpenAI) and local Ollama, same as football's `llm_client.py`.
+6. **Dual provider.** `gpt-5-nano` (OpenAI) and local Ollama, sharing the earlier `llm_client.py`.
 
 ---
 
 ## 2. Milestones / Phasing
 
-Mirrors football's A1→A4 incremental verification. **We do not move to the next phase until the
+Mirrors the football sim's A1→A4 incremental verification. **We do not move to the next phase until the
 current one is verified watchable in the 3D viewer.**
 
 | Phase | Description | Round length | Status |
@@ -55,7 +55,7 @@ runner loop → ursina viewer. Verify each move type on screen before wiring the
 - **Boxers auto-face each other.** Orientation is computed by the engine every tick; the LLM does not
   set facing. The LLM influences position only through discrete footwork picks (§7.3).
 - **Range** = center-to-center distance between the two boxers (feet). This is the boxing analog of
-  football's *separation* and is the single most important spatial quantity (see §6).
+  *separation* in the football sim, and is the single most important spatial quantity (see §6).
 - **Ring position** matters only through **cornering**: when a boxer is at/near a wall, the footwork
   options that would push them further into that wall/corner are removed from the legal-move list and
   the observation flags `CORNERED`. There is no other positional penalty in v1.
@@ -136,7 +136,7 @@ opening regime both are polled; ties broken by seeded RNG, then re-evaluated nex
 - **Pool:** starts at **100.0** per boxer. Energy gates power and reaction and is the slow-burning
   resource of the fight.
 - **Cost of a punch** is a function of the two effort knobs the LLM sets, `strength s ∈ [0,10]` and
-  `speed v ∈ [0,10]`. Fit to the user's anchor points
+  `speed v ∈ [0,10]`. Fit to the anchor points
   `(s=10,v=10)→3.0`, `(s=10,v=1)→1.0`, `(s=1,v=10)→0.5`:
 
   ```
@@ -221,7 +221,7 @@ At a wall/corner, illegal directions are removed and `CORNERED` is flagged.
   recovery; cannot punch.
 - **block** is just a hand in `guard` state (§7.1), not a separate move.
 
-A boxer can **cancel a punch's WINDUP to duck/slip** (as the user described) — but **cannot duck and
+A boxer can **cancel a punch's WINDUP to duck/slip** — but **cannot duck and
 punch simultaneously** (§8).
 
 ---
@@ -295,7 +295,7 @@ little energy (absorbing the shot). A block only covers the side/line it is held
 under a high guard still gets through.
 
 ### 9.4 Determinism
-`make_rng(seed)` (copied from football `sim/seeds.py`) seeds one RNG. The only randomness is
+`make_rng(seed)` (carried over from the football sim's `sim/seeds.py`) seeds one RNG. The only randomness is
 `contest_roll` (the contested margin) and opening-regime tie-breaks. Same seed + same agent outputs →
 identical fight, byte-for-byte replay.
 
@@ -303,7 +303,7 @@ identical fight, byte-for-byte replay.
 
 ## 10. The Observation (what the LLM is handed)
 
-Per the user: **"we give it the full scenario and available moves. It simply chooses a move. No
+The rule: **"we give it the full scenario and available moves. It simply chooses a move. No
 geometric stuff."** The observation is plain English, no coordinates, no trig. It contains:
 
 1. **Fight clock & round:** time left, round number.
@@ -326,7 +326,7 @@ geometric stuff."** The observation is plain English, no coordinates, no trig. I
    - `step_back: ILLEGAL — you are against the ropes.`
 
 This menu is where all feature-engineering lives. The model reads the situation and the consequences
-and **just picks**. (Mirrors football's "feature-enriched menu so the nano model never does math.")
+and **just picks** — a feature-enriched menu, so the nano model never does math.
 
 ### 10.1 Deterministic vitals bands (hidden mapping)
 Health and energy are **never** shown as raw numbers. Each is mapped through a **deterministic**
@@ -347,7 +347,7 @@ never "lands in 0.24s."
 
 ## 11. Decision Flow & Schema
 
-- **Single pass** (per the user — boxing's action space is discrete enough). The agent returns one
+- **Single pass** — boxing's action space is discrete enough. The agent returns one
   JSON object selecting a move from the offered menu:
 
   ```json
@@ -368,19 +368,19 @@ never "lands in 0.24s."
    "reasoning": "His left hook is mid-windup at my head — slip outside it."}
   ```
 
-- **Validation/parsing** mirrors football `agents/schema.py`: strip markdown fences, validate against
+- **Validation/parsing** mirrors the football sim's `agents/schema.py`: strip markdown fences, validate against
   the legal-move list, and **fall back to a safe default** (`both hands guard, no footwork`) on any
   parse/illegal-move error. Illegal picks (locked hand, out-of-range, unaffordable energy) are
   rejected with the boxer holding guard that step. `reasoning` is free text shown in the viewer.
 - The system prompt is **timeless** (rules of boxing, how energy/timing/range/KO work, the move
-  vocabulary). The user message each step is the live observation (§10). Same split as football.
+  vocabulary). The user message each step is the live observation (§10) — the same static/live split.
 
 ---
 
 ## 12. Boxer Attributes (roster)
 
 Madden-style 0–99, but **identical for both boxers in v1** (differences should come from the LLMs,
-per the user). Stats wired into config so they can diverge later:
+not the sheet). Stats wired into config so they can diverge later:
 
 | Attr | Drives |
 |---|---|
@@ -511,13 +511,13 @@ roster_default:
   reach: 75
 ```
 
-(Numbers are first-pass estimates the user delegated; we tune against B2 fights.)
+(Numbers are first-pass estimates; we tune against B2 fights.)
 
 ---
 
 ## 14. Architecture / Directory Structure
 
-Mirrors football one-to-one so the patterns transfer:
+Mirrors the football sim one-to-one so the patterns transfer:
 
 ```
 boxing/
@@ -535,7 +535,7 @@ boxing/
 │   └── state_machine.py            # FightPhase: OPENING → LIVE → KO/END (+ round states later)
 │
 ├── agents/
-│   ├── llm_client.py               # copied from football (OpenAI gpt-5-nano + Ollama)
+│   ├── llm_client.py               # carried over (OpenAI gpt-5-nano + Ollama)
 │   ├── schema.py                   # parse_action() — JSON parse + legality validation + safe default
 │   ├── observation.py              # build_observation() — full scenario + annotated legal-move menu
 │   ├── boxer_agent.py              # BoxerAgent: calls LLM, tracks errors, single-pass decide()
@@ -566,33 +566,33 @@ boxing/
 
 - **Primitives only (v1):** each boxer = a **rectangular torso + a circle/sphere head**, with **two
   arms** that extend toward the opponent on a punch (length/angle keyed to punch type + placement),
-  retract on guard, drop when free. Head bobs/shifts on slip/duck. (Per the user: "just start with
+  retract on guard, drop when free. Head bobs/shifts on slip/duck. ("Just start with
   rectangles with arms and circles for head.")
 - **Ring:** a 16×16 floor with rope lines.
 - **Floating reasoning overlay** per boxer (toggleable), the clip-worthy feature — shows the latest
-  `reasoning` string and the chosen move, like football's renderer.
+  `reasoning` string and the chosen move, like the football sim's renderer.
 - **HUD:** two health bars + two energy bars (with ratchet-cap ticks), round clock, KO banner.
-- **Controls** (match football): `SPACE` play/pause · `←/→` step · `R` toggle reasoning · `+/-` speed
+- **Controls** (matching the football sim): `SPACE` play/pause · `←/→` step · `R` toggle reasoning · `+/-` speed
   · `Q/Esc` quit.
-- **No 2D viewer** (per the user — 3D only). A lightweight **text decision-log** dump may be added for
+- **No 2D viewer** — 3D only. A lightweight **text decision-log** dump may be added for
   debugging.
 
 ---
 
 ## 16. Replay Format
 
-JSON, same spirit as football `replay/recorder.py`: a header (seed, config snapshot, roster, round
+JSON, same spirit as the football sim's `replay/recorder.py`: a header (seed, config snapshot, roster, round
 length), a list of frames (each tick: `t`, phase, both boxers' full state — health, energy, hand
 phases, position, posture — plus any decision made that tick with its `reasoning`, and events:
 `punch_thrown`, `landed`, `blocked`, `slipped`, `body_shot`, `KO`), and a footer (result, KO time,
 landed/thrown/blocked tallies, energy curves). The viewer reads only the replay; the sim and the
-viewer never run in the same process (matches football).
+viewer never run in the same process.
 
 ---
 
 ## 17. LLM Integration
 
-- `agents/llm_client.py` is **copied from football** unchanged: singleton OpenAI client
+- `agents/llm_client.py` is **carried over unchanged**: singleton OpenAI client
   (`gpt-5-nano`, `reasoning_effort`, JSON response_format, token budget) + Ollama client
   (`localhost:11434/v1`, temperature, lenient parse). `--local` routes both boxers to Ollama.
 - Default model `gpt-5-nano`, `reasoning_effort="low"`. B2 (15-second rounds) keeps call volume and
@@ -609,7 +609,7 @@ viewer never run in the same process (matches football).
 - **Knockdowns + 10-count + TKO** — deferred to B4; data model leaves room (one KO event for now).
 - **Separate head/body health** — single bar for v1; `placement_*_share` already tracks the split so
   we can promote body damage to its own bar later.
-- **Two-pass decisions** — start single-pass; add a pass only if the model picks badly (the football
+- **Two-pass decisions** — start single-pass; add a pass only if the model picks badly (the football sim's
   evolution path).
 - **Distinct boxer stats / styles** — identical in v1; roster is ready for divergence.
 - **Out-of-range punches:** offer-with-warning vs hard-illegal — decide during B1 build.
