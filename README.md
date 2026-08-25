@@ -56,7 +56,7 @@ LEGAL MOVES (right hand): guard, free, punch
 The parser is defensive by design: illegal picks coerce to `guard`, strength clamps to what the
 fighter can actually afford, a defense drops any punch specified alongside it, a combo is dropped
 without a lead punch. **The engine can never receive an impossible action.** Across the two shipped
-60-second fights, ~156 model calls per round produced **zero parse errors**.
+fights — 236 model calls in total — there were **zero parse errors**.
 
 ---
 

@@ -219,3 +219,7 @@ __marimo__/
 
 # git worktrees created by Claude Code sessions
 .claude/worktrees/
+
+# one-shot scratch tools (history rewrite)
+_*_tmp.py
+_*_tmp.sh
